@@ -218,6 +218,8 @@ def load_setup(path) -> Setup:
         if not spk:
             raise SounarError(f"{path}: {where} has no [[output.speaker]]")
         used = [c for s in spk for c in s.channels]
+        if "MONO" in used and ("FL" in used or "FR" in used):
+            raise SounarError(f"{path}: {where} cannot mix MONO with FL/FR channels")
         if len(used) != len(set(used)):
             raise SounarError(f"{path}: two speakers of {where} use the same channel")
         outputs.append(Output(str(o.get("node", "")), spk, _correction(path, o.get("correction"), where)))

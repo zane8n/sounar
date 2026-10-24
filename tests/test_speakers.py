@@ -83,6 +83,24 @@ def test_bad_hour(tmp_path):
         load_setup(f)
 
 
+@pytest.mark.parametrize("channels", [("MONO", "FL"), ("FR", "MONO")])
+def test_mono_cannot_be_mixed_with_stereo_channels(tmp_path, channels):
+    f = tmp_path / "setup.toml"
+    speakers = "".join(
+        f'[[output.speaker]]\nchannels = ["{channel}"]\nat = 12\n' for channel in channels
+    )
+    f.write_text('[[output]]\nnode = "a"\n' + speakers)
+    with pytest.raises(SounarError, match=r"setup\.toml.*output 1.*MONO.*FL/FR"):
+        load_setup(f)
+
+
+def test_mono_only_is_valid(tmp_path):
+    f = tmp_path / "setup.toml"
+    f.write_text('[[output]]\nnode = "a"\n'
+                 '[[output.speaker]]\nchannels = ["MONO"]\nat = 12\n')
+    load_setup(f)
+
+
 def test_missing_at(tmp_path):
     f = tmp_path / "setup.toml"
     f.write_text('[[output]]\nnode = "a"\n[[output.speaker]]\nchannels = ["FL", "FR"]\n')
