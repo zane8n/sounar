@@ -22,6 +22,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
   around the seat (a sonar sweep from the computer's built-in speaker), rough speaker distances,
   and at most two gentle bass cuts for booms every speaker shares at the seat (never a boost),
   measured without the room's own cuts. `sounar room correction on|off`, `sounar room walls`.
+- **Omarchy panel:** a Room tab with a map of the room from above: drag each speaker around you
+  to its direction (`sounar speaker <speaker> at <hour>`; the upmixer follows) and the walls'
+  grips to where the walls are; the room measurement and the correction switch. The Speakers
+  tab gets "Stable sync" and "Back" buttons.
 - **Setup:** writes a WirePlumber drop-in that keeps the Bluetooth monitor running when the
   session goes inactive at suspend (it crashed WirePlumber on some machines).
 

@@ -195,3 +195,18 @@ def test_load_ctx_without_setup(tmp_home):
 
 def test_volume_db_helper():
     assert raw_to_db(65536) == 0.0
+
+
+def test_move_speaker_saves_and_reapplies(ctx, tmp_home):
+    from sounar import paths
+    from sounar.speakers import load_setup
+    core.switch(ctx, "music-room")
+    n = len(graph_calls(ctx))
+    core.move_speaker(ctx, "rear-right", 4.5)
+    assert load_setup(paths.setup_file()).speakers()[2].at == 4.5
+    assert len(graph_calls(ctx)) > n and core.verify(ctx) == []
+    core.move_speaker(ctx, "rear-right", 0)                 # 0 o'clock is 12
+    assert load_setup(paths.setup_file()).speakers()[2].at == 12.0
+    with pytest.raises(SounarError, match="no speaker"):
+        core.move_speaker(ctx, "nope", 3)
+

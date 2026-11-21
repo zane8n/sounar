@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "sounar.panel",
   "name": "Sounar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Sounar contributors",
   "description": "Speaker presets (layout, balance, delay, Easy Effects) with live tuning",
   "kinds": [

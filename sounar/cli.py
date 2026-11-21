@@ -26,6 +26,7 @@ seat, and the Easy Effects preset that goes with it.
   sounar room walls L R A B       the walls by hand: metres from your seat to each
   sounar setup [--example NAME]   tell Sounar about your speakers (`--list-examples` shows the examples)
   sounar speakers                 the speaker map
+  sounar speaker <speaker> at <hour>   move a speaker (an hour on the clock face around your seat)
   sounar status --json            everything, for widgets (docs/status-json.md)
   sounar doctor                   a report for bug reports (addresses and names stripped)
   sounar undo | history           undo the last volume change / list recent ones
@@ -112,7 +113,7 @@ def _uninstall(args):
 
 KNOWN = {"status", "-s", "list", "ls", "speakers", "set", "next", "prev", "back", "menu", "menu-install", "tune",
          "reset", "effects", "ee", "balance", "nudge", "sync", "calibrate", "apply", "verify", "is", "undo",
-         "history", "doctor", "guard", "keepalive", "room"}
+         "history", "doctor", "guard", "keepalive", "room", "speaker"}
 
 
 def run(cmd, a, quiet):
@@ -197,6 +198,10 @@ def run(cmd, a, quiet):
     elif cmd == "calibrate":
         from sounar.calibrate import calibrate
         calibrate(ctx)
+    elif cmd == "speaker":
+        if len(a) != 3 or a[1] != "at":
+            raise SounarError("usage: sounar speaker <speaker> at <hour>  (12 = ahead, 3 = right, 9 = left)")
+        core.move_speaker(ctx, a[0], _number(a[2], "the hour"))
     elif cmd == "room":
         from sounar import roommeasure
         if a[:1] == ["measure"]:

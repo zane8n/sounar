@@ -51,6 +51,9 @@ Panel {
   readonly property string iconChevronDown: glyph(0xF0140)
   readonly property string iconMinus: glyph(0xF0374)
   readonly property string iconPlus: glyph(0xF0415)
+  readonly property string iconRoom: glyph(0xF0821)
+  readonly property string iconUndo: glyph(0xF054D)
+  readonly property string iconPin: glyph(0xF0403)
 
   // ---------- State from `sounar status --json` ----------
   property var st: null
@@ -87,6 +90,98 @@ Panel {
   readonly property var activePreset: presetById(activeId)
   readonly property string measuringNow: ready && st.measuring ? st.measuring : starting
   readonly property bool busyMeasuring: measuringNow !== ""
+
+  // ---------- sync back (stable / undo) and the room: map, walls, measurement ----------
+  readonly property var syncInfo: ready && st.sync ? st.sync : ({ undo: null, stable: null })
+  readonly property var roomInfo: ready && st.room ? st.room : null
+  property var wallOverride: null       // {left, right, ahead, behind} while dragged / on its way
+  property string dragWall: ""
+  property string dragSpeaker: ""
+  property var speakerOverride: ({})    // speaker id -> angle while dragged / on its way
+  readonly property var wallNames: ({ left: "Left wall", right: "Right wall", ahead: "Wall ahead", behind: "Wall behind" })
+  function angleOf(at) { var a = (at % 12) * 30; return a > 180 ? a - 360 : a }
+  // Every speaker on the map: its direction (from setup.toml's hour), and how far the room
+  // measurement heard it (1.5 m when it wasn't measured: the map then shows directions only).
+  readonly property var mapSpeakers: {
+    var out = []
+    for (var i = 0; i < outputs.length; i++)
+      for (var j = 0; j < outputs[i].speakers.length; j++) {
+        var sp = outputs[i].speakers[j]
+        if (sp.at === null || sp.zone === "sub") continue
+        var est = roomInfo && roomInfo.speakers && roomInfo.speakers[sp.id] ? roomInfo.speakers[sp.id].dist_est : null
+        var ang = speakerOverride[sp.id] !== undefined ? speakerOverride[sp.id] : angleOf(sp.at)
+        out.push({ id: sp.id, label: sp.nickname || sp.name, angle: ang, dist: est || 1.5, measured: !!est })
+      }
+    return out
+  }
+  function boxWalls() {
+    var b = roomInfo ? roomInfo.box : null
+    if (!b || !b.laptop) return null
+    return { left: b.laptop.x, right: b.width - b.laptop.x, ahead: b.laptop.y, behind: b.length - b.laptop.y }
+  }
+  function walls() { return wallOverride || boxWalls() }
+  function moveWall(side, d) {
+    var w = Object.assign({}, walls())
+    w[side] = Math.max(0.2, Math.min(8, Math.round(d * 20) / 20))
+    wallOverride = w
+  }
+  function dropWall() {
+    var w = walls()
+    if (!w) return
+    settleTimer.restart()
+    run(["room", "walls", w.left.toFixed(2), w.right.toFixed(2), w.ahead.toFixed(2), w.behind.toFixed(2)])
+  }
+  function moveSpeaker(id, angle) {
+    var o = Object.assign({}, speakerOverride)
+    o[id] = Math.round(angle / 15) * 15
+    speakerOverride = o
+  }
+  function dropSpeaker(id) {
+    var a = speakerOverride[id]
+    if (a === undefined) return
+    var hour = ((a / 30) % 12 + 12) % 12
+    settleTimer.restart()
+    run(["speaker", id, "at", String(hour === 0 ? 12 : Math.round(hour * 100) / 100)])
+  }
+  Timer { id: settleTimer; interval: 5000; onTriggered: { root.wallOverride = null; root.speakerOverride = ({}) } }
+  onRoomInfoChanged: {
+    if (dragWall !== "" || !wallOverride) return
+    var b = boxWalls()
+    if (b && ["left", "right", "ahead", "behind"].every(function(k) { return Math.abs(b[k] - wallOverride[k]) < 0.02 }))
+      wallOverride = null
+  }
+  readonly property string roomCaption: {
+    if (dragWall !== "") {
+      var w = walls()
+      return wallNames[dragWall] + ": " + w[dragWall].toFixed(2) + " m from you · room "
+        + (w.left + w.right).toFixed(1) + " × " + (w.ahead + w.behind).toFixed(1) + " m"
+    }
+    if (dragSpeaker !== "") {
+      var sp = mapSpeakers.filter(function(x) { return x.id === dragSpeaker })[0]
+      return sp ? sp.label + " · " + (Math.abs(sp.angle) < 1 ? "ahead" : Math.abs(sp.angle) > 179 ? "behind"
+        : Math.round(Math.abs(sp.angle)) + "° " + (sp.angle > 0 ? "right" : "left")) : ""
+    }
+    return "Drag a speaker around you to where it stands (the upmixer aims sounds by these directions), "
+      + "and the wall grips to where the walls are."
+  }
+  function roomSummary() {
+    var r = roomInfo
+    if (!r) return "Not measured yet. Measuring plays about 30 s of sweeps (the computer's speaker, then each speaker), "
+      + "music paused: it hears the room's echo and size, roughly how far each speaker is, and the bass booms at your seat."
+    var b = r.box, when = Qt.formatDateTime(new Date(r.ts), "d MMM, HH:mm")
+    var cuts = r.cuts.length ? r.cuts.map(function(c) { return Math.round(c.freq) + " Hz " + String(c.gain.toFixed(1)).replace("-", "−") + " dB" }).join(", ")
+      : "no booms worth cutting"
+    return "Measured " + when + ": echo " + r.rt60.toFixed(2) + " s · room about " + b.width.toFixed(1) + " × "
+      + b.length.toFixed(1) + " m" + (r.walls_by_user ? " (your walls)" : b.known && b.known.width && b.known.length ? "" : " (partly guessed)")
+      + " · bass cuts " + cuts + (r.correction ? "" : " (off)") + ". Distances are rough: the dots sit where the measurement heard them."
+  }
+  function measureRoom() {
+    if (busyMeasuring || !allConnected) return
+    starting = "room"
+    startingTimeout.restart()
+    Quickshell.execDetached([root.bin, "room", "measure"])
+    refreshSoon.restart()
+  }
   readonly property bool tweaked: ready && st.tweaked && pendingPreset === ""
 
   // Stable models: replaced only when their contents change, so a status refresh never
@@ -100,7 +195,7 @@ Panel {
   readonly property var visibleKeys: paramKeys.filter(function(k) { return showMore || advancedKeys.indexOf(k) < 0 })
 
   property string tab: "presets"
-  readonly property var tabs: ["presets", "tune", "speakers"]
+  readonly property var tabs: ["presets", "tune", "speakers", "room"]
   property bool showMore: false
   property string hoverHint: ""
   property string hoverPreset: ""
@@ -128,6 +223,7 @@ Panel {
     if (!setupDone) return "Setup needed"
     if (measuringNow === "sync") return "Syncing speakers · music paused"
     if (measuringNow === "calibrate") return "Calibrating · music paused"
+    if (measuringNow === "room") return "Measuring the room · music paused"
     if (connected === 0) return "No speakers connected"
     if (connected < total) return missingName + " missing · plain stereo"
     if (pendingPreset !== "") return "Switching"
@@ -409,7 +505,7 @@ Panel {
         out.push({ type: "toggle", keys: ["leveling"] })
         out.push({ type: "toggle", keys: ["effects"] })
       }
-    } else {
+    } else if (tab === "speakers") {
       if (pair) {
         out.push({ type: "balance", keys: ["+:" + outputs[0].id, "+:" + outputs[1].id] })
         out.push({ type: "nudge", keys: ["-:" + outputs[0].id, "+:" + outputs[0].id] })
@@ -702,13 +798,14 @@ Panel {
           visible: root.setupDone
           width: parent.width
           spacing: Style.space(6)
-          readonly property real cellWidth: (width - spacing * 2) / 3
+          readonly property real cellWidth: (width - spacing * (root.tabs.length - 1)) / root.tabs.length
 
           Repeater {
             model: [
               { value: "presets", label: "Presets", icon: root.iconGrid },
               { value: "tune", label: "Tune", icon: root.iconTune },
-              { value: "speakers", label: "Speakers", icon: root.iconSpeakers }
+              { value: "speakers", label: "Speakers", icon: root.iconSpeakers },
+              { value: "room", label: "Room", icon: root.iconRoom }
             ]
             Button {
               required property var modelData
@@ -1144,6 +1241,44 @@ Panel {
                   onHovered: function(h) { if (h) root.cursorTo("measure", "calibrate") }
                 }
               }
+              Row {
+                id: backRow
+                visible: root.total > 1
+                width: parent.width
+                spacing: Style.space(6)
+                readonly property real cellWidth: (width - spacing) / 2
+                Button {
+                  width: backRow.cellWidth
+                  iconText: root.iconPin
+                  text: !root.syncInfo.stable ? "No stable sync yet" : (root.syncInfo.stable.active ? "On the stable sync" : "Stable sync")
+                  fontSize: Style.font.caption
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  bordered: true
+                  enabled: !!root.syncInfo.stable && !root.syncInfo.stable.active && !root.busyMeasuring
+                  opacity: enabled || (root.syncInfo.stable && root.syncInfo.stable.active) ? 1 : 0.45
+                  tooltipText: root.syncInfo.stable
+                    ? "Back to " + root.syncInfo.stable.text + ", from the " + root.syncInfo.stable.what + " at "
+                      + root.syncInfo.stable.ts.substring(11, 16) + ". Plays nothing; nothing ever syncs on its own"
+                    : "A calibration or a Sync now that ends in sync sets it"
+                  onClicked: root.run(["sync", "stable"])
+                }
+                Button {
+                  width: backRow.cellWidth
+                  iconText: root.iconUndo
+                  text: root.syncInfo.undo ? "Back · " + root.syncInfo.undo.ts.substring(11, 16) : "Nothing to undo"
+                  fontSize: Style.font.caption
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  bordered: true
+                  enabled: !!root.syncInfo.undo && !root.busyMeasuring
+                  opacity: enabled ? 1 : 0.45
+                  tooltipText: root.syncInfo.undo
+                    ? "Back to " + root.syncInfo.undo.text + ", from before the " + root.syncInfo.undo.what + ". Plays nothing"
+                    : "Each sync, calibration or run of by-ear clicks can be undone here"
+                  onClicked: root.run(["sync", "undo"])
+                }
+              }
               Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
@@ -1199,9 +1334,278 @@ Panel {
                 }
               }
             }
+
+            // ---------- Room: the map (speakers, walls) and the room measurement ----------
+            Column {
+              visible: root.setupDone && root.tab === "room"
+              width: parent.width
+              spacing: Style.space(8)
+
+              PanelSectionHeader {
+                text: "YOUR ROOM · FROM ABOVE"
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+              }
+              RoomMap {
+                width: parent.width
+                height: Math.round(width * 0.8)
+              }
+              Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
+                text: root.roomCaption
+                color: root.dragWall !== "" || root.dragSpeaker !== "" ? Color.accent : Qt.darker(root.bar.foreground, 1.3)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
+                text: root.roomSummary()
+                color: Qt.darker(root.bar.foreground, 1.3)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              Row {
+                id: roomRow
+                width: parent.width
+                spacing: Style.space(6)
+                readonly property real cellWidth: (width - spacing) / 2
+                Button {
+                  width: roomRow.cellWidth
+                  iconText: root.iconRoom
+                  iconSpinning: root.measuringNow === "room"
+                  text: root.measuringNow === "room" ? "Measuring…" : (root.roomInfo ? "Measure again" : "Measure the room")
+                  fontSize: Style.font.bodySmall
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  bordered: true
+                  enabled: !root.busyMeasuring && root.allConnected
+                  opacity: enabled || root.measuringNow === "room" ? 1 : 0.45
+                  tooltipText: "About 30 s of sweeps from the computer's speaker and each speaker, music paused. Sit where you listen"
+                  onClicked: root.measureRoom()
+                }
+                Button {
+                  width: roomRow.cellWidth
+                  iconText: root.iconTune
+                  text: !root.roomInfo ? "Room correction" : (root.roomInfo.correction ? "Correction on" : "Correction off")
+                  fontSize: Style.font.bodySmall
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  bordered: true
+                  selected: !!root.roomInfo && root.roomInfo.correction
+                  enabled: !!root.roomInfo && !root.busyMeasuring
+                  opacity: enabled ? 1 : 0.45
+                  tooltipText: "Gentle cuts for the room's bass booms at your seat (the same on every speaker, never a boost)"
+                  onClicked: root.run(["room", "correction", root.roomInfo.correction ? "off" : "on"])
+                }
+              }
+            }
           }
         }
       }
+    }
+  }
+
+  // The room from above: you at the centre (the computer), the speakers by direction (and how far
+  // the room measurement heard them), the walls with grips to drag.
+  component RoomMap: Item {
+    id: map
+    readonly property real fitM: {
+      var m = 2
+      for (var i = 0; i < root.mapSpeakers.length; i++) m = Math.max(m, root.mapSpeakers[i].dist)
+      var w = root.walls()
+      if (w) m = Math.max(m, Math.min(4.5, Math.max(w.left, w.right, w.ahead, w.behind)))
+      return Math.min(5, Math.ceil(m + 0.5))
+    }
+    property real maxM: 3
+    Binding on maxM { when: root.dragWall === "" && root.dragSpeaker === ""; value: map.fitM; restoreMode: Binding.RestoreNone }
+    Behavior on maxM { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+    readonly property real cx: width / 2
+    readonly property real cy: height / 2
+    readonly property real radius: Math.max(10, Math.min(width, height) / 2 - Style.space(14))
+    readonly property real pxPerM: radius / maxM
+    function px(a, d) {
+      var r = a * Math.PI / 180
+      return Qt.point(cx + Math.sin(r) * d * pxPerM, cy - Math.cos(r) * d * pxPerM)
+    }
+    readonly property string paintKey: JSON.stringify([root.mapSpeakers, root.walls(), width, height, maxM,
+      String(Color.accent), String(root.bar.foreground), root.dragWall, root.dragSpeaker])
+    onPaintKeyChanged: floor.requestPaint()
+
+    Canvas {
+      id: floor
+      anchors.fill: parent
+      antialiasing: true
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var fg = root.bar.foreground, ac = Color.accent
+        function css(c, a) {
+          return "rgba(" + Math.round(c.r * 255) + "," + Math.round(c.g * 255) + "," + Math.round(c.b * 255) + "," + a + ")"
+        }
+        var cx = map.cx, cy = map.cy, R = map.radius, k = map.pxPerM
+        var glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R)
+        glow.addColorStop(0, css(ac, 0.12))
+        glow.addColorStop(1, css(ac, 0.0))
+        ctx.fillStyle = glow
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.fill()
+        var wl = root.walls()
+        if (wl) {
+          var rx = cx - wl.left * k, ry = cy - wl.ahead * k
+          var rw = (wl.left + wl.right) * k, rh = (wl.ahead + wl.behind) * k
+          ctx.fillStyle = css(fg, 0.035)
+          ctx.fillRect(rx, ry, rw, rh)
+          ctx.strokeStyle = css(fg, 0.32)
+          ctx.lineWidth = 1.5
+          ctx.strokeRect(rx, ry, rw, rh)
+          if (root.dragWall !== "") {
+            ctx.strokeStyle = css(ac, 0.95)
+            ctx.lineWidth = 2.5
+            ctx.beginPath()
+            if (root.dragWall === "left") { ctx.moveTo(rx, ry); ctx.lineTo(rx, ry + rh) }
+            else if (root.dragWall === "right") { ctx.moveTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + rh) }
+            else if (root.dragWall === "ahead") { ctx.moveTo(rx, ry); ctx.lineTo(rx + rw, ry) }
+            else { ctx.moveTo(rx, ry + rh); ctx.lineTo(rx + rw, ry + rh) }
+            ctx.stroke()
+          }
+        }
+        ctx.lineWidth = 1
+        for (var m = 1; m < map.maxM - 0.05; m++) {
+          ctx.strokeStyle = css(fg, 0.09)
+          ctx.beginPath(); ctx.arc(cx, cy, m * k, 0, 2 * Math.PI); ctx.stroke()
+        }
+        ctx.fillStyle = css(fg, 0.38)
+        ctx.font = Math.round(Style.font.caption * 0.92) + "px \"" + root.bar.fontFamily + "\""
+        ctx.textAlign = "left"; ctx.textBaseline = "top"
+        for (m = 1; m < map.maxM - 0.05; m++) ctx.fillText(m + " m", cx + 4, cy - m * k + 2)
+        ctx.textAlign = "center"
+        ctx.fillText("ahead", cx, Math.max(2, cy - R - Style.space(12)))
+        for (var i = 0; i < root.mapSpeakers.length; i++) {
+          var sp = root.mapSpeakers[i], p = map.px(sp.angle, sp.dist)
+          ctx.strokeStyle = css(ac, sp.id === root.dragSpeaker ? 0.5 : 0.22)
+          ctx.lineWidth = sp.id === root.dragSpeaker ? 2 : 1.4
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(p.x, p.y); ctx.stroke()
+        }
+        ctx.fillStyle = css(fg, 0.92)
+        ctx.beginPath(); ctx.arc(cx, cy, 7, 0, 2 * Math.PI); ctx.fill()
+        ctx.fillStyle = css(ac, 1)
+        ctx.beginPath(); ctx.moveTo(cx, cy - 16); ctx.lineTo(cx - 5, cy - 10); ctx.lineTo(cx + 5, cy - 10); ctx.closePath(); ctx.fill()
+        ctx.fillStyle = css(fg, 0.5)
+        ctx.textBaseline = "top"
+        ctx.fillText("you", cx, cy + 10)
+      }
+    }
+    Repeater {
+      model: root.mapSpeakers
+      SpeakerDot {
+        required property var modelData
+        sp: modelData
+        mapItem: map
+      }
+    }
+    Repeater {
+      model: ["left", "right", "ahead", "behind"]
+      WallGrip {
+        required property var modelData
+        side: modelData
+        mapItem: map
+      }
+    }
+  }
+
+  // A speaker on the map: drag it around you to its direction (the drop saves it in setup.toml).
+  component SpeakerDot: Item {
+    id: dot
+    property var sp: null
+    property var mapItem: null
+    readonly property var pos: mapItem && sp ? mapItem.px(sp.angle, sp.dist) : Qt.point(0, 0)
+    readonly property bool hot: root.dragSpeaker === (sp ? sp.id : "") || area.containsMouse
+    width: Style.space(22); height: width
+    x: pos.x - width / 2
+    y: pos.y - height / 2
+    Rectangle {
+      anchors.fill: parent
+      radius: width / 2
+      color: dot.hot ? Color.accent : Util.alpha(Color.accent, 0.75)
+      border.width: dot.sp && dot.sp.measured ? 0 : 1.5
+      border.color: root.bar.foreground
+    }
+    Text {
+      anchors.top: parent.bottom
+      anchors.horizontalCenter: parent.horizontalCenter
+      textFormat: Text.PlainText
+      text: dot.sp ? dot.sp.label : ""
+      color: root.bar.foreground
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.caption
+    }
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      anchors.margins: -Style.space(6)
+      hoverEnabled: true
+      preventStealing: true
+      enabled: !root.busyMeasuring
+      cursorShape: root.dragSpeaker === (dot.sp ? dot.sp.id : "") ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+      onPressed: root.dragSpeaker = dot.sp.id
+      onPositionChanged: function(mouse) {
+        if (root.dragSpeaker !== dot.sp.id || !dot.mapItem) return
+        var pt = mapToItem(dot.mapItem, mouse.x, mouse.y)
+        root.moveSpeaker(dot.sp.id, Math.atan2(pt.x - dot.mapItem.cx, dot.mapItem.cy - pt.y) * 180 / Math.PI)
+      }
+      onReleased: { if (root.dragSpeaker !== dot.sp.id) return; root.dragSpeaker = ""; root.dropSpeaker(dot.sp.id) }
+      onCanceled: { if (root.dragSpeaker !== dot.sp.id) return; root.dragSpeaker = ""; root.dropSpeaker(dot.sp.id) }
+    }
+  }
+
+  // A wall of the room on the map: drag its grip towards you or away (the drop saves it).
+  component WallGrip: Item {
+    id: grip
+    property string side: ""
+    property var mapItem: null
+    readonly property var w: root.walls()
+    readonly property bool vertical: side === "left" || side === "right"
+    readonly property real k: mapItem ? mapItem.pxPerM : 1
+    readonly property real mcx: mapItem ? mapItem.cx : 0
+    readonly property real mcy: mapItem ? mapItem.cy : 0
+    readonly property real lineX: !w ? 0 : side === "left" ? mcx - w.left * k
+      : side === "right" ? mcx + w.right * k : mcx + (w.right - w.left) * k / 2
+    readonly property real lineY: !w ? 0 : side === "ahead" ? mcy - w.ahead * k
+      : side === "behind" ? mcy + w.behind * k : mcy + (w.behind - w.ahead) * k / 2
+    readonly property bool hot: root.dragWall === side || area.containsMouse
+    visible: !!w
+    width: vertical ? Style.space(12) : Style.space(38)
+    height: vertical ? Style.space(38) : Style.space(12)
+    x: Math.max(0, Math.min((mapItem ? mapItem.width : 0) - width, lineX - width / 2))
+    y: Math.max(0, Math.min((mapItem ? mapItem.height : 0) - height, lineY - height / 2))
+    Rectangle {
+      anchors.centerIn: parent
+      width: grip.vertical ? Style.space(5) : Style.space(28)
+      height: grip.vertical ? Style.space(28) : Style.space(5)
+      radius: Math.min(width, height) / 2
+      color: grip.hot ? Color.accent : Util.alpha(root.bar.foreground, 0.5)
+    }
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      anchors.margins: -Style.space(5)
+      hoverEnabled: true
+      preventStealing: true
+      enabled: !root.busyMeasuring
+      cursorShape: grip.vertical ? Qt.SizeHorCursor : Qt.SizeVerCursor
+      onPressed: root.dragWall = grip.side
+      onPositionChanged: function(mouse) {
+        if (root.dragWall !== grip.side || !grip.mapItem) return
+        var pt = mapToItem(grip.mapItem, mouse.x, mouse.y)
+        var d = grip.side === "left" ? (grip.mcx - pt.x) / grip.k : grip.side === "right" ? (pt.x - grip.mcx) / grip.k
+          : grip.side === "ahead" ? (grip.mcy - pt.y) / grip.k : (pt.y - grip.mcy) / grip.k
+        root.moveWall(grip.side, d)
+      }
+      onReleased: { if (root.dragWall !== grip.side) return; root.dragWall = ""; root.dropWall() }
+      onCanceled: { if (root.dragWall !== grip.side) return; root.dragWall = ""; root.dropWall() }
     }
   }
 

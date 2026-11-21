@@ -331,6 +331,30 @@ def restore_effects(ctx):
     return f"Easy Effects came up on {cur}; loaded {eff.ee} for {eff.label}"
 
 
+def move_speaker(ctx, target, at) -> str:
+    """`sounar speaker <speaker> at <hour>`: where a speaker sits, as an hour on the clock face
+    around the seat (the panel's map drags it). Saved in setup.toml and played right away: the
+    room layout and the upmixer follow the new direction. Levels and timing stay as calibrated
+    until `sounar calibrate`."""
+    from sounar.speakers import save_setup
+    hour = float(at) % 12
+    hour = 12.0 if hour == 0 else round(hour, 2)
+    with Lock():
+        q = str(target).lower().strip()
+        spk = next((s for s in ctx.setup.speakers() if q in (s.id, s.nickname.lower()) or q == s.name.lower()), None)
+        if spk is None:
+            raise SounarError(f"no speaker '{target}'; choose from: {', '.join(s.id for s in ctx.setup.speakers())}")
+        was = spk.at
+        spk.at = hour
+        save_setup(ctx.setup, paths.setup_file())
+        st = load_state(ctx.presets)
+        _apply_all(ctx, st)
+    msg = f"{spk.label} now at {hour:g} o'clock (was {was:g})"
+    log(f"speaker {spk.id} at {was} -> {hour}")
+    ctx.say(msg)
+    return msg
+
+
 def undo_sync(ctx) -> str:
     """`sounar sync undo`: back to the delays before the last sync, calibration, switch to stable
     or run of nudges. Nothing is played."""
