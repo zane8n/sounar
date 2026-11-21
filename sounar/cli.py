@@ -20,6 +20,10 @@ seat, and the Easy Effects preset that goes with it.
   sounar sync stable              back to the sync the last calibration or settled sync found
                                   (nothing ever syncs on its own; these play nothing)
   sounar calibrate                once, and after moving a speaker (~1 min of test sounds)
+  sounar room                     the room: echo, size, rough speaker distances, bass cuts
+  sounar room measure             ~30 s of sweeps (built-in speaker + each speaker), music paused
+  sounar room correction on|off   the gentle bass cuts for the room's booms (on after measuring)
+  sounar room walls L R A B       the walls by hand: metres from your seat to each
   sounar setup [--example NAME]   tell Sounar about your speakers (`--list-examples` shows the examples)
   sounar speakers                 the speaker map
   sounar status --json            everything, for widgets (docs/status-json.md)
@@ -108,7 +112,7 @@ def _uninstall(args):
 
 KNOWN = {"status", "-s", "list", "ls", "speakers", "set", "next", "prev", "back", "menu", "menu-install", "tune",
          "reset", "effects", "ee", "balance", "nudge", "sync", "calibrate", "apply", "verify", "is", "undo",
-         "history", "doctor", "guard", "keepalive"}
+         "history", "doctor", "guard", "keepalive", "room"}
 
 
 def run(cmd, a, quiet):
@@ -193,6 +197,18 @@ def run(cmd, a, quiet):
     elif cmd == "calibrate":
         from sounar.calibrate import calibrate
         calibrate(ctx)
+    elif cmd == "room":
+        from sounar import roommeasure
+        if a[:1] == ["measure"]:
+            roommeasure.measure(ctx)
+        elif a[:1] == ["correction"] and a[1:2] in (["on"], ["off"]):
+            roommeasure.set_correction(ctx, a[1] == "on")
+        elif a[:1] == ["walls"] and len(a) == 5:
+            roommeasure.set_walls(ctx, *(_number(v, "a wall distance") for v in a[1:]))
+        elif not a:
+            ctx.say(roommeasure.room_text(ctx.setup, load_state(ctx.presets)))
+        else:
+            raise SounarError("usage: sounar room [measure | correction on|off | walls L R A B]")
     elif cmd == "apply":
         core.apply(ctx)
     elif cmd == "verify":

@@ -82,8 +82,11 @@ def write_stereo(path, L, R):
 
 
 def read_wav(path):
+    """Mono: (samples,). More channels: (samples, channels)."""
     with wave.open(str(path)) as w:
-        return np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(float) / 32768
+        ch = w.getnchannels()
+        x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(float) / 32768
+    return x if ch == 1 else x.reshape(-1, ch)
 
 
 class Recorder:
@@ -96,18 +99,18 @@ class Recorder:
         for j, f in enumerate(feeds):
             self.pw.set_feed_mute(f.index, idx is not None and j != idx)
 
-    def play_record(self, L, R, switches, feeds):
+    def play_record(self, L, R, switches, feeds, target=None, channels=1):
         d = paths.cache_dir()
         d.mkdir(parents=True, exist_ok=True)
         play, rec = d / "test.wav", d / "test_rec.wav"
         write_stereo(play, L, R)
         self._solo(feeds, switches[0][1])
-        r = subprocess.Popen(["pw-record", "--target", self.mic, "--rate", str(RATE), "--channels", "1",
+        r = subprocess.Popen(["pw-record", "--target", self.mic, "--rate", str(RATE), "--channels", str(channels),
                               "--format", "s16", str(rec)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             time.sleep(REC_LEAD)
             t0 = time.monotonic()
-            p = subprocess.Popen(["pw-play", "--target", self.combine, str(play)],
+            p = subprocess.Popen(["pw-play", "--target", target or self.combine, str(play)],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             for t, idx in switches[1:]:
                 time.sleep(max(0, t0 + t - time.monotonic()))
@@ -277,7 +280,12 @@ class Session:
 
     def apply_stereo(self):
         from sounar.core import apply_plan, current_plan
-        apply_plan(self.ctx, current_plan(self.ctx, load_state(self.ctx.presets), force_layout="stereo"))
+        st = load_state(self.ctx.presets)
+        if self.kind == "room" and st.get("room"):
+            # the room is measured without its own bass cuts: with them on, a second measurement
+            # heard only what was left and replaced the cuts that worked
+            st["room"] = {**st["room"], "correction": False}
+        apply_plan(self.ctx, current_plan(self.ctx, st, force_layout="stereo"))
         time.sleep(self.ctx.settle and 0.6)
 
     def __exit__(self, *exc):

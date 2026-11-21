@@ -64,6 +64,7 @@ sounar vocal +0.5       # fine-tune the active preset
 sounar menu             # a picker (Omarchy menu, Walker, Fuzzel, Rofi, Wofi, bemenu or dmenu)
 sounar sync             # after a Bluetooth speaker reconnects (~15 s of chirps)
 sounar sync stable      # back to the last sync that settled (plays nothing)
+sounar room measure     # the room's echo and size, rough distances, gentle bass cuts (~30 s)
 sounar help             # everything else
 ```
 
@@ -89,6 +90,7 @@ puts things back after a speaker reconnects. Read more:
 - [How it works](docs/how-it-works.md): the sound path, the guard, why Bluetooth needs a keep-alive
 - [Layouts](docs/layouts.md): what each speaker plays, and the formulas
 - [Measuring](docs/measuring.md): sync and calibrate
+- [The room](docs/room.md): the room measurement and gentle bass correction
 - [Presets](docs/presets.md): writing your own
 - [status --json](docs/status-json.md): build a widget for your desktop
 - [Troubleshooting](docs/troubleshooting.md)

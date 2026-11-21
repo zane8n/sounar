@@ -8,7 +8,7 @@ per output out. Pure: it never talks to PipeWire. The formulas are explained in 
           the same mono bass, and all of it lands together at the seat
 """
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sounar.graph import Graph, bq
 from sounar.speakers import anchor
@@ -204,8 +204,19 @@ def speaker_delays(setup, layout, st, playing) -> dict:
     return out
 
 
+def room_cuts(st) -> list:
+    """The gentle bass cuts from `sounar room measure` (the same on every output), as correction
+    filters; none when room correction is off or the room wasn't measured."""
+    r = st.get("room") or {}
+    if not r.get("correction", True):
+        return []
+    return [{"type": "peaking", "freq": c["freq"], "gain": c["gain"], "q": c["q"]} for c in r.get("cuts", [])]
+
+
 def plan(setup, eff, st, connected, force_layout=None) -> Plan:
-    outs = [o for o in setup.outputs if o.node in connected]
+    cuts = room_cuts(st)
+    outs = [o if not cuts else replace(o, correction=list(o.correction) + cuts)
+            for o in setup.outputs if o.node in connected]
     wanted = force_layout or eff.layout
     if not outs:
         return Plan("stereo", wanted, [], "No speakers connected")

@@ -2,7 +2,7 @@
 bar panel and anyone building a widget; the contract is docs/status-json.md)."""
 from pathlib import Path
 
-from sounar import paths, syncpoints
+from sounar import paths, roommeasure, syncpoints
 from sounar.core import current_plan, leveling_target, output_balance_db, sync_text, verify
 from sounar.effects import side_gain
 from sounar.layouts import loudness_db
@@ -44,6 +44,7 @@ def status_json(ctx) -> dict:
         "params": [], "tweaked": bool(tw),
         "effects": _effects(ctx, eff, st),
         "loudness_db": None, "outputs": [], "sync_text": "", "sync": {"undo": None, "stable": None},
+        "room": roommeasure.info(st),
         "calibration": {"source": st["calibration"]["source"], "ts": st["calibration"]["ts"],
                         "measured": st["calibration"]["ts"] is not None},
         "files": _files(),

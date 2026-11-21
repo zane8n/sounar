@@ -33,6 +33,8 @@ means version 2.
                              "at": 11, "zone": "front", "channels": ["FL", "FR"],
                              "level_db": 0.0, "offset_ms": 0.0, "delay_ms": 3.0}]}],
   "sync_text": "Front right + Rear right waits 17.9 ms",
+  "room": null,                  // after `sounar room measure`: echo, box, cuts, correction, rough
+                                 // distances per speaker (docs/room.md)
   "sync": {                      // `sounar sync undo` / `sounar sync stable`; each may be null
     "undo": {"text": "…", "sync_ms": {…}, "what": "sync", "ts": "…", "steps": 2},
     "stable": {"text": "…", "sync_ms": {…}, "what": "calibration", "ts": "…", "active": true}
