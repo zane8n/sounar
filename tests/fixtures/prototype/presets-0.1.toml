@@ -32,6 +32,7 @@ haas = 12
 vocal = 1.0
 bass = 1.0
 dip = -5
+place = 0               # 0.1 had no upmixer
 ee = "Sounar Room"
 
 [vocal]
@@ -60,6 +61,7 @@ bass = 1.0
 amb_lo = 200
 amb_hi = 11000          # the default then; 0.2's built-in Immersive sets 12000
 dip = -4
+place = 0               # 0.1 had no upmixer
 ee = "Sounar Room"
 
 [club]

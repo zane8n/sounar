@@ -13,6 +13,11 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - **Guard:** restarts the audio stack when PipeWire stops answering (after WirePlumber crashed
   at suspend), restarts Easy Effects when its output is linked to nothing, and loads the active
   preset's effects into a newly started Easy Effects.
+- **The upmixer** (Placement, `place` and `wrap` in the room layout): a small LADSPA plugin in
+  every front and surround speaker's graph finds where each sound sits in the stereo mix and
+  plays it from the speakers in that direction (a centred voice from the speakers in front),
+  sends reverb to the surrounds, and keeps every speaker as loud as the plain room mix makes it.
+  Music uses 0.6, Immersive 0.8. install.sh builds it when a C compiler is there.
 - **Room measurement** (`sounar room measure`, about 30 s): the room's echo time, the surfaces
   around the seat (a sonar sweep from the computer's built-in speaker), rough speaker distances,
   and at most two gentle bass cuts for booms every speaker shares at the seat (never a boost),

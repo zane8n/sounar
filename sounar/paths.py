@@ -46,6 +46,17 @@ def package_data() -> Path:
     return Path(__file__).resolve().parent / "data"
 
 
+def ladspa_dir() -> Path:
+    """Where install.sh puts the upmix plugin; WirePlumber finds it through LADSPA_PATH (a
+    drop-in for wireplumber.service). SOUNAR_LADSPA_DIR overrides it."""
+    d = os.environ.get("SOUNAR_LADSPA_DIR")
+    return Path(d) if d else Path.home() / ".local/lib/ladspa"
+
+
+def upmix_available() -> bool:
+    return (ladspa_dir() / "sounar_upmix.so").exists()
+
+
 def setup_file() -> Path:
     return config_dir() / "setup.toml"
 

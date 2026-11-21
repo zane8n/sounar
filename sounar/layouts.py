@@ -10,6 +10,7 @@ per output out. Pure: it never talks to PipeWire. The formulas are explained in 
 import math
 from dataclasses import dataclass, field, replace
 
+from sounar import paths
 from sounar.graph import Graph, bq
 from sounar.speakers import anchor
 
@@ -145,6 +146,87 @@ def _wired_graph(output, params, delay_s, spread):
     return G, _text(G, ports, output)
 
 
+UPMIX_MAX = 8                      # chains the upmix plugin knows about
+UPMIX_LATENCY_S = 2048 / 48000     # its delay (the same on every chain); a sub waits as long
+SPLIT_DEG = 15                     # a lone stereo box's channels, this far either side of it
+
+
+def upmix_chains(speakers, gains):
+    """The chains the upmixer places sounds between: every front and surround speaker, a lone
+    front stereo box as two (just left and right of it). None if there are too many."""
+    chains = []
+    for s in speakers:
+        if s.zone == "sub":
+            continue
+        if gains[s.id].split:
+            chains += [{"sid": s.id, "sign": 1.0, "angle": s.angle - SPLIT_DEG, "zone": 1},
+                       {"sid": s.id, "sign": -1.0, "angle": s.angle + SPLIT_DEG, "zone": 1}]
+        else:
+            chains.append({"sid": s.id, "sign": None, "angle": s.angle, "zone": 1 if s.zone == "front" else 2})
+    return chains if 0 < len(chains) <= UPMIX_MAX else None
+
+
+def _upmix_graph(output, params, gains, delays, chains):
+    """The room layout with sounds placed (docs/upmix.md): one sounar_upmix instance per chain
+    renders that chain's bass, room mix and placed sounds; a surround's ambience then gets the
+    usual band, dip and delay. Placement 0 would be the plain room mix (that path is used then)."""
+    G = Graph()
+    L, R = G.head()
+    if any(s.zone == "sub" for s in output.speakers):
+        M, _ = G.mid_side(L, R)
+        x = params["xover"]
+        G.eq("mlo", bq("lowpass", x), bq("lowpass", x))
+        G.link(M, "mlo:In 1")
+    geo = {}
+    for i in range(UPMIX_MAX):
+        c = chains[i] if i < len(chains) else None
+        geo[f"Angle {i + 1}"] = round(c["angle"], 1) if c else 0.0
+        geo[f"Zone {i + 1}"] = c["zone"] if c else 0
+    index = {(c["sid"], c["sign"]): i for i, c in enumerate(chains)}
+    corr, ports = _corr(output), {}
+    for i, s in enumerate(output.speakers):
+        g = gains[s.id]
+        specs = [(["FL"], 1.0), (["FR"], -1.0)] if g.split else [(s.channels, None)]
+        for j, (chs, sign) in enumerate(specs):
+            n = f"s{i}{'lr'[j] if g.split else ''}"
+            wait = 0.0
+            if s.zone == "sub":
+                G.mixer(n, g.bass)
+                G.link("mlo:Out 1", f"{n}:In 1")
+                src, wait = f"{n}:Out", UPMIX_LATENCY_S
+            else:
+                front = s.zone == "front"
+                G.ladspa(f"{n}u", "sounar_upmix", "sounar_upmix", {
+                    "Placement": params["place"], "Wrap": params["wrap"], "Ambience front": 0.5,
+                    "Crossover": params["xover"], "Vocal": params["vocal"], "Match": 1,
+                    "Self": index[(s.id, sign)] + 1, "Count": len(chains), **geo, "Bass": g.bass,
+                    "Base M": g.mid if front else 0.0, "Base S": g.side * (sign or 1.0) if front else 0.0,
+                    "Base amb": 0.0 if front else g.amb})
+                G.link(L, f"{n}u:In L"); G.link(R, f"{n}u:In R")
+                if front:
+                    src = f"{n}u:Out"
+                else:
+                    G.eq(f"{n}a", bq("highpass", params["amb_lo"]), bq("highpass", params["amb_lo"]),
+                         bq("peaking", 2500, params["dip"], 0.6), bq("lowpass", params["amb_hi"]))
+                    G.link(f"{n}u:Amb", f"{n}a:In 1")
+                    G.delay(f"{n}h", params["haas"] / 1000)
+                    G.link(f"{n}a:Out 1", f"{n}h:In")
+                    G.mixer(n, 1.0, 1.0)
+                    G.link(f"{n}u:Out", f"{n}:In 1"); G.link(f"{n}h:Out", f"{n}:In 2")
+                    src = f"{n}:Out"
+            G.delay(f"{n}d", delays[s.id] + wait)
+            G.link(src, f"{n}d:In")
+            last = _finish(G, f"{n}e", f"{n}d:Out", corr)
+            if len(chs) == 1:
+                ports[chs[0]] = last
+            else:
+                for ch in chs:
+                    G.copy(f"{n}{ch.lower()}")
+                    G.link(last, f"{n}{ch.lower()}:In")
+                    ports[ch] = f"{n}{ch.lower()}:Out"
+    return G, _text(G, ports, output)
+
+
 def _room_graph(output, params, gains, delays):
     G = Graph()
     L, R = G.head()
@@ -226,9 +308,14 @@ def plan(setup, eff, st, connected, force_layout=None) -> Plan:
     playing = [s for o in outs for s in o.speakers]
     delays = speaker_delays(setup, layout, st, playing)
     gains = room_gains(playing, eff.params, st["calibration"].get("levels", {})) if layout == "room" else None
+    chains = None
+    if layout == "room" and eff.params.get("place", 0) > 0 and paths.upmix_available():
+        chains = upmix_chains(playing, gains)
     plans = []
     for o in outs:
-        if layout == "room":
+        if layout == "room" and chains:
+            G, text = _upmix_graph(o, eff.params, gains, delays, chains)
+        elif layout == "room":
             G, text = _room_graph(o, eff.params, gains, delays)
         else:
             G, text = _wired_graph(o, eff.params, delays[o.speakers[0].id], layout == "spread")

@@ -91,6 +91,7 @@ puts things back after a speaker reconnects. Read more:
 - [Layouts](docs/layouts.md): what each speaker plays, and the formulas
 - [Measuring](docs/measuring.md): sync and calibrate
 - [The room](docs/room.md): the room measurement and gentle bass correction
+- [The upmixer](docs/upmix.md): placing each sound in its own direction (Placement)
 - [Presets](docs/presets.md): writing your own
 - [status --json](docs/status-json.md): build a widget for your desktop
 - [Troubleshooting](docs/troubleshooting.md)

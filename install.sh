@@ -116,6 +116,31 @@ install_effects() {
   say "Easy Effects presets: $d"
 }
 
+install_upmix() {   # the upmixer (Placement) is a small C plugin: build it if we can
+  lib="$HOME/.local/lib/ladspa"
+  dropin="$CONF/systemd/user/wireplumber.service.d/sounar-ladspa.conf"
+  if ! have make || ! { have cc || have gcc; }; then
+    say "Note: no C compiler or make, so the upmixer isn't built: the room layout plays its plain mix"
+    say "  (Placement does nothing). Install gcc and make, then run ./install.sh again."
+    return 0
+  fi
+  rm -f "$DEST/sounar/upmix/sounar_upmix.so"
+  if ! make -s -C "$DEST/sounar/upmix" sounar_upmix.so >/dev/null 2>&1 || [ ! -f "$DEST/sounar/upmix/sounar_upmix.so" ]; then
+    say "Note: the upmixer didn't build (make -C $DEST/sounar/upmix shows why); the room layout plays its plain mix."
+    return 0
+  fi
+  mkdir -p "$lib" "$(dirname "$dropin")"
+  cp "$DEST/sounar/upmix/sounar_upmix.so" "$lib/sounar_upmix.so"
+  cat > "$dropin" <<'EOF2'
+# Written by Sounar's install.sh: WirePlumber finds Sounar's upmix plugin here. In an output's
+# filter graph PipeWire only looks on LADSPA_PATH (it puts each directory even in front of an
+# absolute path). Takes effect when WirePlumber restarts (`sounar setup` restarts it).
+[Service]
+Environment=LADSPA_PATH=%h/.local/lib/ladspa:/usr/lib64/ladspa:/usr/lib/ladspa:/usr/lib
+EOF2
+  say "Upmixer: $lib/sounar_upmix.so"
+}
+
 install_services() {
   mkdir -p "$CONF/systemd/user"
   for u in $UNITS; do cp "$SRC/sounar/data/systemd/$u" "$CONF/systemd/user/$u"; done
@@ -161,6 +186,7 @@ install() {
   check
   install_program
   install_effects
+  install_upmix
   install_services
   install_omarchy
   have omarchy || suggest_keys
@@ -176,6 +202,8 @@ uninstall() {
     systemctl --user disable --now $UNITS >/dev/null 2>&1
   fi
   for u in $UNITS; do rm -f "$CONF/systemd/user/$u"; done
+  rm -f "$CONF/systemd/user/wireplumber.service.d/sounar-ladspa.conf" "$HOME/.local/lib/ladspa/sounar_upmix.so"
+  rmdir "$CONF/systemd/user/wireplumber.service.d" 2>/dev/null
   have systemctl && systemctl --user daemon-reload
   prev="$STATE/sounar/previous-default"
   if [ -f "$prev" ] && have pactl; then pactl set-default-sink "$(cat "$prev")" >/dev/null 2>&1; fi

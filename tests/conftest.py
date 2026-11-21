@@ -20,6 +20,8 @@ def _isolated(tmp_path, monkeypatch):
         d.mkdir()
         monkeypatch.setenv(xdg, str(d))
     monkeypatch.setenv("SOUNAR_DATA_DIR", str(tmp_path / "data"))
+    (tmp_path / "ladspa").mkdir()
+    monkeypatch.setenv("SOUNAR_LADSPA_DIR", str(tmp_path / "ladspa"))     # no upmix plugin unless a test adds one
     monkeypatch.delenv("SOUNAR_DRY_RUN", raising=False)
 
 

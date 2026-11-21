@@ -17,6 +17,11 @@
 #   xover   Hz   below this every speaker plays the same mono bass, time-aligned (default 150)
 #   amb_lo / amb_hi  Hz  ambience band (defaults 250 / 11000)
 #   dip     dB   ambience cut around 2.5 kHz (1.2-5 kHz) so vocal reverb doesn't come from behind
+#   place   0-1  placement: how much each sound comes from its own direction (the upmixer finds
+#                where each sound sits in the stereo mix and plays it from the speakers that way;
+#                each speaker stays as loud as with 0). 0 = the plain room mix. Needs the upmix
+#                plugin (install.sh builds it); without it the value is ignored
+#   wrap    0-1  how far sounds panned to one side reach towards a speaker beside or behind
 # layout = "stereo"  every speaker plays as wired: only sync and balance
 # layout = "spread"  anywhere in the room: every speaker plays the whole song
 #   width   0-1  how much stereo is kept (0 = mono everywhere, 1 = full stereo)
@@ -36,6 +41,7 @@ haas = 12
 vocal = 1.0
 bass = 1.0
 dip = -5
+place = 0.6
 ee = "Sounar Room"
 
 # Against Music: the ambience 5.5 dB louder, 6 ms later and wider (more air, less cut), the front
@@ -53,6 +59,8 @@ bass = 1.0
 amb_lo = 200
 amb_hi = 12000
 dip = -3
+place = 0.8
+wrap = 0.3
 ee = "Sounar Classical Room"
 
 # Facing the TV: every speaker plays as wired so the sound stays on the screen, dialogue lifted,

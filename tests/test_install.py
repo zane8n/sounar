@@ -183,3 +183,26 @@ def test_numpy_checked_the_way_sounar_runs(box):
     shim.chmod(0o755)
     r = box("--yes")
     assert r.returncode == 1 and "numpy" in r.stdout
+
+
+def test_no_compiler_no_upmixer(box):
+    r = box("--yes")
+    assert r.returncode == 0 and "upmixer isn't built" in r.stdout
+    assert not (box.home / ".local/lib/ladspa/sounar_upmix.so").exists()
+
+
+def test_upmixer_built_installed_and_removed(box):
+    make = box.bin / "make"
+    make.write_text('#!/bin/sh\n: > "$3/$4"\n')                     # make -s -C DIR TARGET
+    make.chmod(0o755)
+    cc = box.bin / "cc"
+    cc.write_text("#!/bin/sh\nexit 0\n")
+    cc.chmod(0o755)
+    r = box("--yes")
+    assert r.returncode == 0, r.stdout + r.stderr
+    so = box.home / ".local/lib/ladspa/sounar_upmix.so"
+    dropin = box.home / ".config/systemd/user/wireplumber.service.d/sounar-ladspa.conf"
+    assert so.exists() and "LADSPA_PATH=%h/.local/lib/ladspa" in dropin.read_text()
+    assert box("--uninstall").returncode == 0
+    assert not so.exists() and not dropin.exists()
+

@@ -83,6 +83,8 @@ ee = "Sounar Default"
 | `dip` | −12 to 0 dB | ambience cut around 2.5 kHz |
 | `xover` | 80 to 250 Hz | below this every speaker plays the same bass |
 | `amb_lo`, `amb_hi` | 120–600 / 5000–16000 Hz | the ambience band |
+| `place` | 0 to 1 | placement: how much each sound comes from its own direction ([upmixer](upmix.md)) |
+| `wrap` | 0 to 1 | how far sounds panned to one side reach towards a speaker beside or behind |
 | `width` | 0 to 1 | spread: 0 = mono everywhere, 1 = full stereo |
 
 Values your speakers can't use (no rear speaker means no `fill`) are simply ignored.

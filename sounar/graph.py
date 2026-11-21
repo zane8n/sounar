@@ -30,6 +30,13 @@ class Graph:
     def copy(self, name):
         self.node(name, "copy")
 
+    def ladspa(self, name, plugin, label, control):
+        """A LADSPA plugin node. `plugin` is a name found on LADSPA_PATH: in an output's filter
+        graph PipeWire puts every search directory in front of it, even of an absolute path."""
+        self.nodes.append(f'{{ type = ladspa name = {name} plugin = "{plugin}" label = {label} control = {{ '
+                          + " ".join(f'"{k}" = {fnum(v)}' for k, v in control.items()) + " } }")
+        self.ctl.update({f"{name}:{k}": float(fnum(v)) for k, v in control.items()})
+
     def mixer(self, name, *gains):
         self.node(name, "mixer", control={f"Gain {i + 1}": g for i, g in enumerate(gains)})
 

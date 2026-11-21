@@ -41,11 +41,15 @@ PARAMS = {
                    "Below this every speaker plays the same bass, lined up at your seat", 80, 250),
     "amb_lo": Param("Ambience low cut", "Hz", 10.0, True, "The ambience starts here", 120, 600),
     "amb_hi": Param("Ambience high cut", "Hz", 500.0, True, "and stops here", 5000, 16000),
+    "place": Param("Placement", "", 0.05, False,
+                   "How much each sound comes from its own direction: 0 = the plain room mix", 0, 1),
+    "wrap": Param("Wrap", "", 0.05, True,
+                  "How far sounds panned to one side reach towards a speaker beside or behind", 0, 1),
 }
 
 DEFAULTS = {
     "room": {"centre": 6.0, "fill": -9.0, "haas": 12.0, "vocal": 1.0, "bass": 1.0,
-             "xover": 150.0, "amb_lo": 250.0, "amb_hi": 11000.0, "dip": -5.0},
+             "xover": 150.0, "amb_lo": 250.0, "amb_hi": 11000.0, "dip": -5.0, "place": 0.0, "wrap": 0.15},
     "spread": {"width": 0.5},
     "stereo": {},
 }
@@ -127,4 +131,6 @@ def applicable(setup, layout) -> list:
         has -= {"fill", "haas", "dip", "amb_lo", "amb_hi"}
     if not any(s.bass_boost for s in spk):
         has.discard("bass")
+    if not paths.upmix_available():
+        has -= {"place", "wrap"}
     return [k for k in PARAMS if k in has]

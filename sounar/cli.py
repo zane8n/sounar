@@ -8,7 +8,7 @@ seat, and the Easy Effects preset that goes with it.
   sounar next | prev | back       cycle presets, or the one before this one
   sounar menu                     preset picker (Omarchy menu, Walker, Fuzzel, Rofi, Wofi, bemenu, dmenu)
   sounar <value> [+N|-N|=N]       fine-tune the active preset: vocal, bass, centre, fill, haas, width,
-                                  dip, xover, amb_lo, amb_hi (+N/-N relative, =N absolute)
+                                  dip, xover, amb_lo, amb_hi, place, wrap (+N/-N relative, =N absolute)
   sounar tune vocal=1.5 bass=2    several at once; `sounar reset` undoes the fine-tuning
   sounar effects "<name>"|preset  Easy Effects preset for the active preset (`preset` = its own)
   sounar effects off|on|next      Easy Effects bypass, or try the next Easy Effects preset

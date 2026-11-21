@@ -57,7 +57,9 @@ def test_every_preset_equivalent(path, tmp_home, ps):
     rec = json.loads(path.read_text())
     s, st = original_room(rec), state_for(rec, ps)
     e = effective(st, ps)
-    assert e.params == rec["params"] and e.layout == rec["layout"] and e.ee == rec["ee"]
+    new_in_02 = ("place", "wrap")          # the upmixer came later; at placement 0 it isn't used
+    assert {k: v for k, v in e.params.items() if k not in new_in_02} == rec["params"]
+    assert e.params.get("place", 0.0) == 0.0 and e.layout == rec["layout"] and e.ee == rec["ee"]
     p = plan(s, e, st, {"n1", "n2"})
     assert p.layout == rec["layout"]
     by_id = {o.output_id: o.text for o in p.outputs}
