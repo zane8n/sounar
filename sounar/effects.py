@@ -89,17 +89,14 @@ class Effects:
         except (OSError, ValueError, KeyError, TypeError):
             return {}
 
+    # Reads go straight to the socket. `easyeffects -a/--bypass 3` send these same requests, but
+    # the command line needs a display (it aborts without one) and starts Easy Effects if it's down.
     def current(self) -> str | None:
-        # Only ask a running Easy Effects: its command line would start it otherwise.
-        if not self.which("easyeffects") or not self.running():
-            return None
-        return self._cli("-a", "output") or None
+        return self._send("get_last_loaded_preset:output", reply=True) or None
 
     def bypass(self) -> bool | None:
-        if not self.which("easyeffects") or not self.running():
-            return None
-        v = self._cli("--bypass", "3")
-        return None if v is None or v == "" else v == "1"
+        v = self._send("get_global_bypass", reply=True)
+        return None if not v else v == "1"
 
     def leveling(self, name) -> bool:
         ag = self.data(name).get("autogain#0")

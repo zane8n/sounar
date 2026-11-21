@@ -85,3 +85,31 @@ def test_reads_dont_start_effects_when_not_running(tmp_path):
     ee = Effects(which=lambda n: f"/usr/bin/{n}", socket_path=tmp_path / "x", preset_dir=tmp_path, run=run)
     assert ee.current() is None and ee.bypass() is None
     assert all(a[0] == "pgrep" for a in ran)                  # never `easyeffects ...` while it's not running
+
+
+def test_reads_use_the_socket_not_the_command_line(tmp_path):
+    # `easyeffects -a/--bypass` needs a display; speaker-guard starts before Hyprland has one
+    import socket
+    import threading
+    path = tmp_path / "ee.sock"
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(str(path))
+    srv.listen()
+    answers = {"get_last_loaded_preset:output": "Sounar Room", "get_global_bypass": "2"}
+    asked = []
+
+    def serve():
+        for _ in answers:
+            c, _addr = srv.accept()
+            with c:
+                q = c.recv(4096).decode().strip()
+                asked.append(q)
+                c.sendall((answers[q] + "\n").encode())
+    t = threading.Thread(target=serve, daemon=True)
+    t.start()
+    ee = Effects(which=lambda n: f"/usr/bin/{n}", socket_path=path, preset_dir=tmp_path,
+                 run=lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran")))
+    assert ee.current() == "Sounar Room" and ee.bypass() is False
+    t.join(2)
+    srv.close()
+    assert asked == ["get_last_loaded_preset:output", "get_global_bypass"]
