@@ -4,9 +4,8 @@ import re
 
 import pytest
 
-from fakes import FakeEffects, original_room_system, bt_names
+from fakes import FakeEffects, original_room_system, bt_names, legacy_presets
 from sounar import core, doctor
-from sounar.presets import load_presets
 from sounar.speakers import examples, load_setup
 from sounar.state import log
 from sounar.status import status_json, status_text
@@ -22,7 +21,7 @@ def ctx(tmp_home):
     s = load_setup(examples()["stereo-box-and-twin-right"])
     s.outputs[0].node, s.outputs[1].node = bt_names(pw)
     s.outputs[1].speakers[1].nickname = "Bookshelf"
-    return core.Ctx(s, pw, FakeEffects(), load_presets(None), say=lambda *_: None, settle=0)
+    return core.Ctx(s, pw, FakeEffects(), legacy_presets(), say=lambda *_: None, settle=0)
 
 
 def test_json_contract_keys(ctx):
@@ -36,7 +35,7 @@ def test_json_contract_keys(ctx):
 
 
 def test_json_without_setup(tmp_home):
-    c = core.Ctx(None, original_room_system(), FakeEffects(), load_presets(None), say=lambda *_: None)
+    c = core.Ctx(None, original_room_system(), FakeEffects(), legacy_presets(), say=lambda *_: None)
     j = status_json(c)
     assert j["setup"]["done"] is False and j["outputs"] == [] and j["params"] == []
     assert TOP <= set(j) and len(j["presets"]) == 9

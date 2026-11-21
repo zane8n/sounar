@@ -1,4 +1,6 @@
 """Stand-ins for a real system: an in-memory PipeWire and Easy Effects that record every change."""
+from pathlib import Path
+
 import sim
 from sounar.pipewire import Feed, Sink, Stream
 
@@ -27,6 +29,7 @@ class FakePipeWire:
         self.units = {"sounar-keepalive.service": True, "sounar-guard.service": True}
         self._version = version
         self.link_text = ""
+        self.out_ports = ""
 
     def log(self, *a):
         self.calls.append(a)
@@ -108,6 +111,9 @@ class FakePipeWire:
     def links(self):
         return self.link_text
 
+    def ports_out(self):
+        return self.out_ports
+
     def play(self, path, target):
         self.log("play", target, str(path))
 
@@ -133,6 +139,7 @@ class FakeEffects:
         self.loaded = None
         self.target = None
         self.bypassed = False
+        self.pid_value = "4242"
         self.calls = []
         self._presets = presets
 
@@ -141,6 +148,9 @@ class FakeEffects:
 
     def running(self):
         return self._available
+
+    def pid(self):
+        return self.pid_value if self._available else None
 
     def presets(self):
         return self._presets or self._real.presets()
@@ -249,3 +259,13 @@ class FakeRoom:
 def bt_names(pw):
     """The Bluetooth outputs' node names, in order."""
     return sorted(s.name for s in pw.sinks() if s.bus == "bluetooth")
+
+
+LEGACY_PRESETS = Path(__file__).parent / "fixtures/prototype/presets-0.1.toml"
+
+
+def legacy_presets():
+    """The nine presets of 0.1 (club, party, tv, ...) as a user presets file: tests of the
+    engine use them; 0.2 ships three."""
+    from sounar.presets import load_presets
+    return load_presets(LEGACY_PRESETS)

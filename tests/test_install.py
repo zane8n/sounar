@@ -117,6 +117,9 @@ def test_uninstall_removes_files_keeps_config(box):
     pwc.mkdir(parents=True)
     (pwc / "sounar.conf").write_text("x")
     (pwc / "mine.conf").write_text("y")
+    wpc = box.home / ".config/wireplumber/wireplumber.conf.d"
+    wpc.mkdir(parents=True)
+    (wpc / "sounar-bluetooth.conf").write_text("x")
     r = box("--uninstall")
     assert r.returncode == 0, r.stdout + r.stderr
     assert not (box.home / ".local/share/sounar").exists() and not (box.home / ".local/bin/sounar").exists()
@@ -124,6 +127,7 @@ def test_uninstall_removes_files_keeps_config(box):
     assert (cfg / "setup.toml").exists()
     assert not (ee / "Sounar Default.json").exists() and (ee / "Sounar Late Night.json").exists()
     assert not (pwc / "sounar.conf").exists() and (pwc / "mine.conf").exists()
+    assert not (wpc / "sounar-bluetooth.conf").exists()
     c = calls(box)
     assert "systemctl --user disable --now sounar-guard.service sounar-keepalive.service" in c
     assert "pactl set-default-sink alsa_output.speaker" in c

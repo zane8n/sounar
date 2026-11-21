@@ -22,17 +22,14 @@ Switching never interrupts the music, and nothing is measured again when you swi
 
 | Preset | Layout | For |
 |---|---|---|
-| Music Room | room | everyday music at your seat: vocals up front, full bass, the room filled around you |
-| Vocal Focus | room | singers, acoustic, podcasts |
-| Immersive | room | ambient, live sets, film scores |
-| Club | room | afrobeats, amapiano, hip-hop, EDM |
-| Concert Hall | room | classical and jazz |
-| Late Night | room | low volume: clear vocals, no boom |
-| TV, Movie Night | stereo | facing the TV |
-| Party | spread | anywhere in the room |
+| Music | room | everyday listening at your seat: the voice in front of you, full bass, a little room around you |
+| Immersive | room | sitting inside the music: the ambience louder, later and wider |
+| Movie | stereo | facing the TV: speech first, loud scenes held back |
 
-Each preset can be fine-tuned live (vocal presence, bass, centre focus, room fill, ambience
-delay, …), and you can add your own.
+Three, one per thing you actually do; each one sounds clearly different within seconds. Each
+can be fine-tuned live (vocal presence, bass, centre focus, room fill, ambience delay, …), and
+you can add your own: the [presets page](docs/presets.md) has the old Club, Party, Late Night
+and others ready to copy.
 
 ## What you need
 
@@ -62,10 +59,11 @@ asking), creates a combined output called "Sounar", and offers to calibrate. Aft
 
 ```sh
 sounar list             # the presets
-sounar club             # switch
+sounar immersive        # switch
 sounar vocal +0.5       # fine-tune the active preset
 sounar menu             # a picker (Omarchy menu, Walker, Fuzzel, Rofi, Wofi, bemenu or dmenu)
 sounar sync             # after a Bluetooth speaker reconnects (~15 s of chirps)
+sounar sync stable      # back to the last sync that settled (plays nothing)
 sounar help             # everything else
 ```
 

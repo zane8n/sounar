@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from collections.abc import Callable
 
-from sounar import SounarError, paths
+from sounar import SounarError, paths, syncpoints
 from sounar.effects import Effects, autogain_target, side_gain
 from sounar.graph import MAX_DELAY
 from sounar.layouts import loudness_db, plan
@@ -301,15 +301,81 @@ def nudge(ctx, target, ms):
     with Lock():
         st = load_state(ctx.presets)
         out = ctx.setup.find(target)
+        before = dict(st["sync_ms"])
         sync = dict(st["sync_ms"])
         sync[out.id] = float(sync.get(out.id, 0.0)) + float(ms)
         st["sync_ms"] = normalise_sync(ctx.setup, sync)
+        syncpoints.remember(st, "nudge", before)
         save_state(st)
         _apply_all(ctx, st)
     msg = sync_text(ctx.setup, st)
     log(f"nudge {out.id} {float(ms):+g} ms: {st['sync_ms']}")
     ctx.say(f"sync: {msg}")
     ctx.tell("Speaker sync", msg)
+
+
+def restore_effects(ctx):
+    """Easy Effects starts on its own last-saved preset, not the active Sounar preset's (after a
+    boot or a restart, music could run through the wrong chain until a preset was picked again).
+    Returns what it did ("" if it was right), or None if Easy Effects can't say yet."""
+    st = load_state(ctx.presets)
+    eff = effective(st, ctx.presets)
+    if not eff.ee or not ctx.ee.available():
+        return ""
+    cur = ctx.ee.current()
+    if cur is None:
+        return None
+    if cur == eff.ee:
+        return ""
+    apply_effects(ctx, eff, st, load=True)
+    return f"Easy Effects came up on {cur}; loaded {eff.ee} for {eff.label}"
+
+
+def undo_sync(ctx) -> str:
+    """`sounar sync undo`: back to the delays before the last sync, calibration, switch to stable
+    or run of nudges. Nothing is played."""
+    with Lock():
+        st = load_state(ctx.presets)
+        pts = syncpoints.points(st)
+        if not pts:
+            raise SounarError("no earlier sync to go back to")
+        p = pts.pop()
+        before = dict(st["sync_ms"])
+        st["sync_ms"] = dict(p["sync_ms"])
+        st["sync_undo"] = pts
+        save_state(st)
+        _apply_all(ctx, st)
+    when = f"the {syncpoints.WHAT.get(p['what'], p['what'])} at {p['ts'][11:16]}"
+    msg = f"{sync_text(ctx.setup, st)} (from before {when})"
+    log(f"sync undo: {before} -> {st['sync_ms']} (from before {when} of {p['ts'][:10]})")
+    ctx.say(f"sync: {msg}")
+    ctx.tell("Speaker sync", f"Back to {msg}")
+    return msg
+
+
+def stable_sync(ctx) -> str:
+    """`sounar sync stable`: back to the delays the last calibration or settled sync found.
+    Nothing is played; it is one undo step."""
+    with Lock():
+        st = load_state(ctx.presets)
+        s = syncpoints.stable_point(st)
+        if not s:
+            raise SounarError("no stable sync yet: `sounar calibrate` or a `sounar sync` that settles sets it")
+        before = dict(st["sync_ms"])
+        if before != s["sync_ms"]:
+            st["sync_ms"] = dict(s["sync_ms"])
+            syncpoints.remember(st, "stable", before)
+            save_state(st)
+            _apply_all(ctx, st)
+    msg = syncpoints.describe(s, sync_text(ctx.setup, {"sync_ms": s["sync_ms"]}))
+    if before == s["sync_ms"]:
+        ctx.say(f"sync: already stable ({msg})")
+        ctx.tell("Speaker sync", f"Already on the stable sync: {msg}")
+        return msg
+    log(f"sync stable: {before} -> {st['sync_ms']} ({s['what']} of {s['ts']})")
+    ctx.say(f"sync: {msg}")
+    ctx.tell("Speaker sync", f"Stable sync: {msg}")
+    return msg
 
 
 def sync_text(setup, st) -> str:

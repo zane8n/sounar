@@ -1,9 +1,8 @@
 import pytest
 
-from fakes import FakeEffects, original_room_system, bt_names
+from fakes import FakeEffects, original_room_system, bt_names, legacy_presets
 from sounar import SounarError, core
 from sounar.pipewire import raw_to_db
-from sounar.presets import load_presets
 from sounar.speakers import examples, load_setup
 from sounar.state import Measuring, history, load_state, save_state
 
@@ -19,7 +18,7 @@ def original_setup(pw):
 def ctx(tmp_home):
     pw = original_room_system()
     said, notes = [], []
-    c = core.Ctx(original_setup(pw), pw, FakeEffects(), load_presets(None), say=said.append,
+    c = core.Ctx(original_setup(pw), pw, FakeEffects(), legacy_presets(), say=said.append,
                  notify=lambda t, b="", i="": notes.append((t, b)), settle=0)
     c.said, c.notes = said, notes
     return c
@@ -62,9 +61,9 @@ def test_switch_no_speakers(ctx):
 
 
 def test_step_and_back(ctx):
-    core.switch(ctx, "tv")
+    core.switch(ctx, "tv")                       # built-ins first, then the user's own: ... tv, party
     core.step(ctx, 1)
-    assert load_state(ctx.presets)["preset"] == "movie"
+    assert load_state(ctx.presets)["preset"] == "party"
     core.back(ctx)
     assert load_state(ctx.presets)["preset"] == "tv"
 

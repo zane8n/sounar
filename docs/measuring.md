@@ -27,7 +27,21 @@ they're within 3 ms. Readings that disagree by more than 10 ms (a Bluetooth hicc
 nothing.
 
 Speakers on cables keep their delay, so this is only needed for Bluetooth. The guard tells you
-when a Bluetooth speaker reconnected.
+when a Bluetooth speaker reconnected. Nothing ever syncs on its own: the delays change only when
+you ask.
+
+## Stable sync and undo (nothing is played)
+
+- `sounar sync stable` goes back to the **stable sync**: the delays the last calibration, or the
+  last `sounar sync` that ended in sync, settled on. By-ear nudges, undo and a sync that didn't
+  settle never change it, so it's the fixed point to return to when things sound off.
+- `sounar sync undo` goes back one step: before the last sync, calibration, switch to stable or
+  run of nudges (nudges less than a minute apart are one step). Again to go further back.
+
+Both remember which outputs they were for: delays saved while another output was connected (a
+TV joined for a while, say) aren't offered for the usual set. A stable sync is right for the
+Bluetooth links it was measured on; each reconnect moves a link's delay a little, so after one
+it's a good starting point and `sounar sync` makes it exact (and becomes the new stable one).
 
 ## By ear
 

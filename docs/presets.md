@@ -15,14 +15,56 @@ width = 0.2
 ee = "Sounar Late Night"
 
 # Changes to a built-in one
-[club]
+[music-room]
 bass = 4
 ee = "My Bass EQ"
 
 # Hide one you never use
-[concert]
+[immersive]
 hidden = true
 ```
+
+Sounar ships three presets (Music, Immersive, Movie): one per thing you do, each clearly
+different. Until 0.2 it shipped nine; the ones that went, ready to paste into your file:
+
+```toml
+[club]
+label = "Club"
+tagline = "Afrobeats, amapiano, hip-hop, EDM: deep, punchy bass"
+icon = "󰓃"
+layout = "room"
+centre = 6
+fill = -10
+haas = 12
+vocal = 1.0
+bass = 3.0
+xover = 160
+dip = -5
+ee = "Sounar Room"
+
+[late-night]
+label = "Late Night"
+tagline = "Low volume: clear vocals, even loudness, no boom"
+icon = "󰖔"
+layout = "room"
+centre = 6
+fill = -12
+haas = 12
+vocal = 1.5
+bass = 0
+dip = -5
+ee = "Sounar Late Night"
+
+[party]
+label = "Party"
+tagline = "Anywhere in the room: every speaker plays the whole song"
+icon = "󰍖"
+layout = "spread"
+width = 0.5
+ee = "Sounar Default"
+```
+
+(Vocal Focus, Concert Hall and TV are in `tests/fixtures/prototype/presets-0.1.toml`.)
 
 | Setting | |
 |---|---|

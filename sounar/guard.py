@@ -9,6 +9,11 @@ computer wakes from a stall, it checks and quietly repairs:
   - every output runs the active preset's graph, and Easy Effects' leveling target matches
   - streams left muted by an interrupted measurement are unmuted
   - the keep-alive stream runs (Bluetooth links change their delay whenever their stream stops)
+  - a new Easy Effects process runs the active preset's effects (it starts on its last-saved one)
+    and its output is linked (a WirePlumber restart can leave it running into nothing: silence)
+  - the audio server answers: if checks keep failing and `pactl` itself hangs (seen after
+    WirePlumber crashed at suspend), it restarts PipeWire, its pulse server and WirePlumber, then
+    Easy Effects and the keep-alive, at most once per 10 minutes, and says so
 
 Left alone on purpose: the combined output's own volume and mute (your volume keys), and volume
 changes you make by hand while a speaker stays connected. After a Bluetooth speaker reconnects
@@ -29,14 +34,37 @@ GRAPH_EVERY = 6         # check graphs every N routine checks (reading them is h
 STALL_S = 3.0           # woke this much later than planned = the computer stalled or slept
 EE_UNIT = "app-com.github.wwmm.easyeffects@autostart.service"
 KEEPALIVE_UNIT = "sounar-keepalive.service"
+AUDIO_STACK = ("pipewire.service", "pipewire-pulse.service", "wireplumber.service")
+STUCK_AFTER = 2         # failed checks in a row before asking whether the audio server hangs
+RESTART_GAP_S = 600     # at most one automatic audio restart per 10 minutes
+
+
+def pulse_ok(timeout=8) -> bool:
+    """The pulse side of PipeWire answers (it hung for hours after WirePlumber crashes)."""
+    try:
+        return subprocess.run(["pactl", "info"], capture_output=True, timeout=timeout).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _systemctl(*args):
+    return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, check=False)
 
 
 class Guard:
-    def __init__(self, make_ctx, settle=2.0):
+    def __init__(self, make_ctx, settle=2.0, pulse_ok=pulse_ok, systemctl=_systemctl, clock=time.monotonic,
+                 sleep=time.sleep, notify=None):
         self.make_ctx, self.settle = make_ctx, settle
+        self.pulse_ok, self.systemctl, self.clock, self.sleep = pulse_ok, systemctl, clock, sleep
+        self.notify = notify
         self.known = None            # setup outputs present last pass
         self.reconnected = set()
         self.wake = threading.Event()
+        self.fails = 0               # failed checks in a row
+        self.last_restart = None     # clock() of the last automatic audio restart
+        self.gave_up = False
+        self.ee_pid = None           # the Easy Effects process last seen
+        self.ee_unlinked = 0         # checks in a row that found its output linked to nothing
 
     def check(self, graphs=True) -> list:
         if measuring():
@@ -93,13 +121,31 @@ class Guard:
             ctx.pw.systemctl("start", EE_UNIT)
             msgs.append("Easy Effects wasn't running; started it")
             return
+        pid = ctx.ee.pid() if hasattr(ctx.ee, "pid") else None
+        if pid and pid != self.ee_pid:
+            m = core.restore_effects(ctx)
+            if m is not None:
+                self.ee_pid = pid
+                if m:
+                    msgs.append(m)
         targets, cur = [], None
         for line in ctx.pw.links().splitlines():
             if not line.startswith(" "):
                 cur = line.strip()
             elif cur and cur.startswith("ee_soe_output_level:output_") and "|->" in line:
                 targets.append(line.split("|->")[1].strip().split(":")[0])
-        if targets and not any(t == ctx.setup.combine_node for t in targets) and any(t in nodes for t in targets):
+        if not targets:
+            # running but feeding nothing; restart it if that lasts two checks (it links a moment
+            # after it starts)
+            if hasattr(ctx.pw, "ports_out") and "ee_soe_output_level:output_" in ctx.pw.ports_out():
+                self.ee_unlinked += 1
+                if self.ee_unlinked >= 2:
+                    self.ee_unlinked = 0
+                    ctx.pw.systemctl("restart", EE_UNIT)
+                    msgs.append("Easy Effects was running with its output linked to nothing (silence); restarted it")
+            return
+        self.ee_unlinked = 0
+        if not any(t == ctx.setup.combine_node for t in targets) and any(t in nodes for t in targets):
             ctx.pw.systemctl("restart", EE_UNIT)
             msgs.append("Easy Effects was playing into one speaker only; restarted it")
 
@@ -151,13 +197,59 @@ class Guard:
         try:
             msgs = self.check(graphs)
             self.last_error = None
+            self.fails = 0
             return msgs
         except Exception as e:
             err = f"{e}" if isinstance(e, SounarError) else repr(e)
             if err != getattr(self, "last_error", None):
                 log(f"guard: check failed: {err}")
                 self.last_error = err
+            self.fails += 1
+            if self.fails >= STUCK_AFTER:
+                try:
+                    self.recover()
+                except Exception as e2:
+                    log(f"guard: audio recovery failed: {e2!r}")
             return []
+
+    def _tell(self, title, body):
+        if self.notify:
+            self.notify(title, body)
+        else:
+            from sounar.desktop import notify
+            notify(title, body)
+
+    def recover(self) -> str:
+        """Checks keep failing. If `pactl` itself hangs, the audio server is stuck: restart the
+        stack and what plays through it. Returns what happened ("" = not stuck)."""
+        if self.pulse_ok():
+            return ""
+        t = self.clock()
+        if self.last_restart is not None and t - self.last_restart < RESTART_GAP_S:
+            if not self.gave_up:
+                self.gave_up = True
+                log("guard: the audio server is stuck again right after a restart; leaving it")
+                self._tell("Audio is stuck", "By hand: systemctl --user restart pipewire pipewire-pulse wireplumber")
+            return "gave up"
+        self.last_restart, self.gave_up = t, False
+        log("guard: the audio server stopped answering (pactl hangs); restarting PipeWire")
+        self._tell("Audio stuck: restarting it", "PipeWire stopped answering; restarting the audio services")
+        keepalive = self.systemctl("is-active", KEEPALIVE_UNIT)
+        users = [EE_UNIT] + ([KEEPALIVE_UNIT] if (getattr(keepalive, "stdout", "") or "").strip() == "active" else [])
+        self.systemctl("restart", *AUDIO_STACK)
+        for _ in range(20):
+            self.sleep(1)
+            if self.pulse_ok(3):
+                break
+        else:
+            log("guard: PipeWire was restarted but still doesn't answer")
+            self._tell("Audio is stuck", "PipeWire was restarted but still doesn't answer")
+            return "failed"
+        self.systemctl("restart", *users)
+        self.known, self.ee_pid, self.fails = None, None, 0
+        log(f"guard: audio restarted ({', '.join(AUDIO_STACK + tuple(users))})")
+        self._tell("Audio is back", "PipeWire was stuck and has been restarted")
+        return "restarted"
 
     def _events(self):
         """Wake on device changes (not on the constant volume/level 'change' events)."""

@@ -209,6 +209,25 @@ def correction_conf(setup) -> str | None:
     return "\n".join(out) + "\n"
 
 
+BT_CONF = """# Written by `sounar setup`: keep WirePlumber's Bluetooth monitor running when the login session
+# goes inactive. On some machines (an NVIDIA driver, say) the kernel switches VT at every suspend;
+# for that moment logind reports the session as inactive and WirePlumber shut its Bluetooth
+# monitor down while a speaker link was dropping. That crashed WirePlumber (libspa-bluez5) and
+# left PipeWire stuck until a restart. Seat monitoring only matters for several people on one
+# machine's seats. Remove this file to bring it back.
+wireplumber.profiles = {
+  main = {
+    monitor.bluez.seat-monitoring = disabled
+  }
+}
+"""
+
+
+def bluetooth_conf(setup):
+    """The WirePlumber Bluetooth drop-in, for setups with a Bluetooth output (else None)."""
+    return BT_CONF if any(o.node.startswith("bluez_") for o in setup.outputs) else None
+
+
 def finish(ctx, setup, ask=input, say=print) -> None:
     from sounar import core
     pw = ctx.pw
@@ -224,6 +243,11 @@ def finish(ctx, setup, ask=input, say=print) -> None:
         f = paths.xdg_config_home() / "wireplumber/wireplumber.conf.d/sounar-correction.conf"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(corr)
+    bt = bluetooth_conf(setup)
+    if bt:
+        f = paths.xdg_config_home() / "wireplumber/wireplumber.conf.d/sounar-bluetooth.conf"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(bt)
     if not _yes(ask, "Sounar needs to restart PipeWire once so the \"Sounar\" output appears. Music apps "
                 "(Spotify especially) may need a restart afterwards. Restart now?"):
         say("Nothing changed yet. When it suits you: systemctl --user restart pipewire pipewire-pulse "

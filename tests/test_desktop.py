@@ -16,9 +16,9 @@ def test_launcher_order():
 
 
 def test_menu_lines_mark_current():
-    lines, actions = desktop.menu_lines(load_presets(None), "club")
-    assert any(line.startswith("✓") and "Club" in line for line in lines)
-    assert actions[lines.index(next(x for x in lines if "Party" in x))] == ("set", "party")
+    lines, actions = desktop.menu_lines(load_presets(None), "immersive")
+    assert any(line.startswith("✓") and "Immersive" in line for line in lines)
+    assert actions[lines.index(next(x for x in lines if "Movie" in x))] == ("set", "movie")
     assert ("sync",) in actions and ("calibrate",) in actions
 
 
@@ -28,10 +28,10 @@ def test_omarchy_block_replaced(tmp_path):
     desktop.write_omarchy_menu(f, load_presets(None))
     txt = f.read_text()
     assert '"mine": {"label": "Mine"}' in txt and txt.count("sounar:begin") == 1
-    assert '"sounar.club"' in txt and "sounar set club" in txt and txt.rstrip().endswith("}")
+    assert '"sounar.immersive"' in txt and "sounar set immersive" in txt and txt.rstrip().endswith("}")
 
 
 def test_omarchy_menu_created_when_missing(tmp_path):
     f = tmp_path / "ext" / "omarchy-menu.jsonc"
     desktop.write_omarchy_menu(f, load_presets(None))
-    assert '"sounar.tv"' in f.read_text()
+    assert '"sounar.movie"' in f.read_text()

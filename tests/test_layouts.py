@@ -1,9 +1,9 @@
+from fakes import legacy_presets
 import numpy as np
 import pytest
 
 import sim
 from sounar.layouts import loudness_db, plan, room_gains
-from sounar.presets import load_presets
 from sounar.speakers import Output, Setup, Speaker, examples, load_setup
 from sounar.state import effective, load_state
 
@@ -21,7 +21,7 @@ def nodes(s):
 
 @pytest.fixture
 def ps():
-    return load_presets(None)
+    return legacy_presets()
 
 
 def eff(ps, st, pid, **params):

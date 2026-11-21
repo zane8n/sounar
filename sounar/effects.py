@@ -70,6 +70,11 @@ class Effects:
     def available(self) -> bool:
         return bool(self.which("easyeffects")) or self.socket_path.exists()
 
+    def pid(self) -> str | None:
+        """The running Easy Effects process (a new one starts on its own last-saved preset)."""
+        r = self.run(["pgrep", "-x", "easyeffects"], capture_output=True, text=True, check=False)
+        return ((r.stdout or "").split() or [None])[0]
+
     def running(self) -> bool:
         r = self.run(["pgrep", "-x", "easyeffects"], capture_output=True, text=True, check=False)
         return bool((r.stdout or "").strip())

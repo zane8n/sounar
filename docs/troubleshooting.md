@@ -35,3 +35,24 @@ Then `systemctl --user restart pipewire pipewire-pulse wireplumber` removes the 
 
 Still stuck? Open a [bug report](https://github.com/zane8n/sounar/issues/new?template=bug_report.yml)
 with the output of `sounar doctor`.
+
+## No sound after the laptop wakes up (WirePlumber crashed at suspend)
+
+On some machines (an NVIDIA driver, for one) the kernel switches the virtual terminal at every
+suspend. For that moment the login session counts as inactive, and WirePlumber's seat
+monitoring shut its whole Bluetooth monitor down while a speaker's link was dropping: WirePlumber
+crashed in `libspa-bluez5`, and PipeWire stayed stuck (`pactl` hangs) until it was restarted.
+
+- `sounar setup` writes `~/.config/wireplumber/wireplumber.conf.d/sounar-bluetooth.conf`, which
+  turns seat monitoring off for Bluetooth (it only matters when several people share one
+  machine's seats). Remove the file to bring it back.
+- If the audio server hangs anyway, the guard notices (two failed checks, `pactl info` timing
+  out), restarts PipeWire, its pulse server and WirePlumber, then Easy Effects and the
+  keep-alive, and tells you. At most once per 10 minutes; by hand:
+  `systemctl --user restart pipewire pipewire-pulse wireplumber`.
+
+## Easy Effects plays the wrong effects after a restart
+
+Easy Effects starts on its own last-saved preset, not the active Sounar preset's. The guard sees
+a new Easy Effects process and loads the right one; it also restarts Easy Effects if it runs
+with its output linked to nothing (what a WirePlumber restart can leave behind).

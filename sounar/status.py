@@ -2,7 +2,7 @@
 bar panel and anyone building a widget; the contract is docs/status-json.md)."""
 from pathlib import Path
 
-from sounar import paths
+from sounar import paths, syncpoints
 from sounar.core import current_plan, leveling_target, output_balance_db, sync_text, verify
 from sounar.effects import side_gain
 from sounar.layouts import loudness_db
@@ -43,7 +43,7 @@ def status_json(ctx) -> dict:
                      "ee": v.ee, "tweaked": bool(st["tweaks"].get(k))} for k, v in ctx.presets.items()],
         "params": [], "tweaked": bool(tw),
         "effects": _effects(ctx, eff, st),
-        "loudness_db": None, "outputs": [], "sync_text": "",
+        "loudness_db": None, "outputs": [], "sync_text": "", "sync": {"undo": None, "stable": None},
         "calibration": {"source": st["calibration"]["source"], "ts": st["calibration"]["ts"],
                         "measured": st["calibration"]["ts"] is not None},
         "files": _files(),
@@ -52,7 +52,8 @@ def status_json(ctx) -> dict:
         return out
     p = current_plan(ctx, st, eff)
     out.update(live_layout=p.layout, note=p.note, applied=bool(p.outputs) and not verify(ctx, st),
-               sync_text=sync_text(ctx.setup, st))
+               sync_text=sync_text(ctx.setup, st),
+               sync=syncpoints.info(st, lambda pt: sync_text(ctx.setup, {"sync_ms": pt["sync_ms"]})))
     out["loudness_db"] = round(loudness_db(ctx.setup, eff, st, side_gain(ctx.ee.data(eff.ee) if eff.ee else {})), 1)
     for k in applicable(ctx.setup, eff.layout):
         if k in eff.params:
@@ -111,6 +112,13 @@ def status_text(ctx) -> str:
             delay = f", delay {sp['delay_ms']:.1f} ms" if sp["delay_ms"] is not None else ""
             lines.append(f"    {sp['name']}{nick} ({_hour(sp['at'])}): {state}{delay}")
     lines.append(f"  Sync: {j['sync_text']}")
+    if j["sync"]["stable"]:
+        s = j["sync"]["stable"]
+        lines.append(f"    stable sync: {s['text']}, from the {s['what']} at {s['ts'][11:16]}"
+                     + (" (active)" if s["active"] else " (`sounar sync stable` goes back to it)"))
+    if j["sync"]["undo"]:
+        u = j["sync"]["undo"]
+        lines.append(f"    sync undo: back to {u['text']}, from before the {u['what']} at {u['ts'][11:16]}")
     c = j["calibration"]
     lines.append(f"  Calibration: {c['source']}" + (f", {c['ts']}" if c["ts"] else " (run `sounar calibrate`)"))
     return "\n".join(lines)

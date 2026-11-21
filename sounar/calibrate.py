@@ -2,7 +2,7 @@
 speaker, ~1 min). See docs/measuring.md."""
 import math
 
-from sounar import SounarError
+from sounar import SounarError, syncpoints
 from sounar.core import apply_effects, snapshot
 from sounar.graph import MAX_DELAY
 from sounar.measure import Session, measure_arrivals, measure_levels
@@ -38,8 +38,10 @@ def _outputs(ctx):
     return outs, [feeds[o.node] for o in outs], {o.id: i for i, o in enumerate(outs)}
 
 
-def _sync_loop(ctx, session, outs, feeds, index, passes=3, first=None):
-    steps = []
+def _sync_loop(ctx, session, outs, feeds, index, passes=3, first=None, what="sync"):
+    """Measure, correct, verify. Each pass is saved as it goes, and the undo point is kept with
+    the first change, so a run that breaks off part way can still be undone."""
+    steps, kept = [], False
     for n in range(passes):
         if n == 0 and first:
             arr = first
@@ -58,7 +60,11 @@ def _sync_loop(ctx, session, outs, feeds, index, passes=3, first=None):
         steps.append(gap)
         if gap < SYNC_OK_MS:
             return gap, steps
+        before = dict(st["sync_ms"])
         st["sync_ms"] = new_sync({o.id: st["sync_ms"].get(o.id, 0.0) for o in outs}, arrivals)
+        if not kept:
+            syncpoints.remember(st, what, before)
+            kept = st["sync_ms"] != before
         save_state(st)
         session.apply_stereo()
     return steps[-1], steps
@@ -73,12 +79,16 @@ def sync(ctx) -> str:
         before = dict(load_state(ctx.presets)["sync_ms"])
         res, steps = _sync_loop(ctx, se, outs, feeds, index)
     st = load_state(ctx.presets)
+    if res < SYNC_OK_MS:                    # settled: what `sounar sync stable` goes back to
+        syncpoints.mark_stable(st, "sync")
+        save_state(st)
     log(f"sync: {', '.join(f'{s:+.1f}' for s in steps)} ms; delays {before} -> {st['sync_ms']}")
     if res < SYNC_OK_MS:
         msg = f"Within {res:.0f} ms" + (f" (was {steps[0]:.0f} ms off)" if len(steps) > 1 else ", nothing to change")
         ctx.tell("Speakers in sync", msg)
     else:
-        msg = f"Still {res:.0f} ms apart after {len(steps)} passes; run `sounar sync` again"
+        msg = (f"Still {res:.0f} ms apart after {len(steps)} passes; run `sounar sync` again, "
+               "or go back with `sounar sync stable`")
         ctx.tell("Speaker sync incomplete", msg)
     ctx.say(msg)
     return msg
@@ -100,7 +110,8 @@ def calibrate(ctx) -> str:
             if off:
                 ctx.say(f"  {sid} arrives {off:+.1f} ms after its output's front speaker")
         if len(outs) > 1:
-            res, _ = _sync_loop(ctx, se, outs, feeds, index, first={o.id: arr[o.reference.id] for o in outs})
+            res, _ = _sync_loop(ctx, se, outs, feeds, index, first={o.id: arr[o.reference.id] for o in outs},
+                                what="calibrate")
         ctx.say("level of each speaker…")
         levels, ptp = measure_levels(ctx, spk, feeds, index)
         ctx.say("  " + "   ".join(f"{k} {v:+.1f} dB (±{ptp[k] / 2:.1f})" for k, v in levels.items()))
@@ -124,6 +135,8 @@ def calibrate(ctx) -> str:
         st = load_state(ctx.presets)
         st["calibration"] = {"levels": {k: round(v - ref, 2) for k, v in lv.items()}, "offsets_ms": offsets,
                              "source": "sounar calibrate", "ts": now()}
+        if res < SYNC_OK_MS:               # settled: what `sounar sync stable` goes back to
+            syncpoints.mark_stable(st, "calibrate")
         save_state(st)
     st = load_state(ctx.presets)
     apply_effects(ctx, effective(st, ctx.presets), st, load=False)

@@ -33,6 +33,10 @@ means version 2.
                              "at": 11, "zone": "front", "channels": ["FL", "FR"],
                              "level_db": 0.0, "offset_ms": 0.0, "delay_ms": 3.0}]}],
   "sync_text": "Front right + Rear right waits 17.9 ms",
+  "sync": {                      // `sounar sync undo` / `sounar sync stable`; each may be null
+    "undo": {"text": "…", "sync_ms": {…}, "what": "sync", "ts": "…", "steps": 2},
+    "stable": {"text": "…", "sync_ms": {…}, "what": "calibration", "ts": "…", "active": true}
+  },
   "calibration": {"source": "sounar calibrate", "ts": "2026-10-24T13:43:55", "measured": true},
   "files": {"setup": "...", "presets": "...", "log": "...", "docs": "..."}
 }
@@ -52,6 +56,7 @@ and `params` are empty.
 | leveling / effects | `sounar -q effects leveling on|off`, `sounar -q effects off|on` |
 | balance / sync by ear | `sounar -q balance <speaker> ±dB`, `sounar -q nudge <speaker> ±ms` |
 | measure | `sounar sync`, `sounar calibrate` (they notify themselves) |
+| sync back | `sounar -q sync undo`, `sounar -q sync stable` |
 
 `-q` skips the notification: the widget shows the change itself. Changes are serialised by a
 lock, and refused (exit 1, message on stdout) while a measurement runs.

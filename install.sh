@@ -180,7 +180,8 @@ uninstall() {
   prev="$STATE/sounar/previous-default"
   if [ -f "$prev" ] && have pactl; then pactl set-default-sink "$(cat "$prev")" >/dev/null 2>&1; fi
   restart=0
-  for f in "$CONF/pipewire/pipewire.conf.d/sounar.conf" "$CONF/wireplumber/wireplumber.conf.d/sounar-correction.conf"; do
+  for f in "$CONF/pipewire/pipewire.conf.d/sounar.conf" "$CONF/wireplumber/wireplumber.conf.d/sounar-correction.conf" \
+           "$CONF/wireplumber/wireplumber.conf.d/sounar-bluetooth.conf"; do
     [ -e "$f" ] && { rm -f "$f"; restart=1; }
   done
   if [ -d "$CONF/omarchy/plugins/sounar.panel" ]; then

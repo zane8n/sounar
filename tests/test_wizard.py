@@ -106,3 +106,12 @@ def test_finish_restarts_enables_and_applies(tmp_home):
     assert len([c for c in pw.calls if c[0] == "set_graph"]) == 2
     conf = paths.xdg_config_home() / "pipewire/pipewire.conf.d/sounar.conf"
     assert conf.exists()
+    bt = paths.xdg_config_home() / "wireplumber/wireplumber.conf.d/sounar-bluetooth.conf"
+    assert "monitor.bluez.seat-monitoring = disabled" in bt.read_text()       # the suspend-crash fix
+
+
+def test_no_bluetooth_conf_without_bluetooth_outputs():
+    s = expected_original(original_room_system())
+    for o in s.outputs:
+        o.node = "alsa_output.usb-speaker"
+    assert wizard.bluetooth_conf(s) is None

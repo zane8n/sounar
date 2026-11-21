@@ -16,6 +16,9 @@ seat, and the Easy Effects preset that goes with it.
   sounar balance <speaker> ±dB    make that speaker's output louder or quieter
   sounar nudge <speaker> ±ms      sync by ear: that output plays later (+) or sooner (-)
   sounar sync                     re-sync after a Bluetooth reconnect (~15 s of chirps, music paused)
+  sounar sync undo                back to the sync before the last sync, calibration or nudges
+  sounar sync stable              back to the sync the last calibration or settled sync found
+                                  (nothing ever syncs on its own; these play nothing)
   sounar calibrate                once, and after moving a speaker (~1 min of test sounds)
   sounar setup [--example NAME]   tell Sounar about your speakers (`--list-examples` shows the examples)
   sounar speakers                 the speaker map
@@ -180,6 +183,10 @@ def run(cmd, a, quiet):
         if len(a) != 2:
             raise SounarError("usage: sounar nudge <speaker> ±ms (speakers: `sounar speakers`)")
         core.nudge(ctx, a[0], _number(a[1], "the change"))
+    elif cmd == "sync" and a[:1] == ["undo"]:
+        core.undo_sync(ctx)
+    elif cmd == "sync" and a[:1] == ["stable"]:
+        core.stable_sync(ctx)
     elif cmd == "sync":
         from sounar.calibrate import sync
         sync(ctx)

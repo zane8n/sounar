@@ -43,7 +43,9 @@ def shipped_effects():
 
 @pytest.fixture
 def ps():
-    return load_presets(None)
+    # the engine must still build the prototype's graphs for the nine presets it was pinned on;
+    # 0.2 ships three, so the nine come back as a user presets file
+    return load_presets(Path(__file__).parent / "fixtures/prototype/presets-0.1.toml")
 
 
 def test_fixtures_present():

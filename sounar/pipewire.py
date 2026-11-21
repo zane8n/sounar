@@ -215,6 +215,10 @@ class PipeWire:
     def links(self) -> str:
         return self._read("pw-link", "-l")
 
+    def ports_out(self) -> str:
+        """Every output port, linked or not (`links` only shows linked ones)."""
+        return self._read("pw-link", "-o")
+
     def play(self, path, target) -> None:
         """Play a sound file straight to one output (setup's identification tones)."""
         self._do("pw-play", "--target", target, str(path))

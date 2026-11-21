@@ -2,7 +2,21 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.1.0 (unreleased)
+## Unreleased
+
+- **Three presets instead of nine** (Music, Immersive, Movie): one per thing you do, each clearly
+  different. The old ones are in docs/presets.md to paste into your own file; importing a
+  prototype keeps them.
+- **Stable sync and sync undo:** `sounar sync stable` goes back to the last sync that settled
+  (a calibration or a `sounar sync` that ended in sync); `sounar sync undo` steps back through
+  syncs, calibrations and by-ear nudges. Neither plays anything; nothing syncs on its own.
+- **Guard:** restarts the audio stack when PipeWire stops answering (after WirePlumber crashed
+  at suspend), restarts Easy Effects when its output is linked to nothing, and loads the active
+  preset's effects into a newly started Easy Effects.
+- **Setup:** writes a WirePlumber drop-in that keeps the Bluetooth monitor running when the
+  session goes inactive at suspend (it crashed WirePlumber on some machines).
+
+## 0.1.0
 
 First public version, grown out of a one-room prototype.
 

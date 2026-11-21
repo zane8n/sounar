@@ -1,5 +1,9 @@
 # Sounar's built-in presets. Each one sets how the speakers share the music (layout), the
 # values of that layout, and the Easy Effects preset loaded with it, in one go: `sounar <id>`.
+#
+# Three, one per thing you actually do. A preset belongs here only if you hear what it does
+# within seconds of switching to it; near-identical variants were dropped in 0.2 (the old nine
+# are in docs/presets.md as examples for your own file).
 # Order here = order in menus and for `sounar next`. Don't edit this file: add or override
 # presets in ~/.config/sounar/presets.toml (same format; `hidden = true` hides one).
 #
@@ -22,8 +26,8 @@
 # loudness. Values a setup can't use (no rear speaker = no fill) are simply ignored.
 
 [music-room]
-label = "Music Room"
-tagline = "Vocals up front, full bass, the room filled around you"
+label = "Music"
+tagline = "Everyday: the voice in front of you, full bass, a little room around you"
 icon = "󰝚"
 layout = "room"
 centre = 6
@@ -34,93 +38,28 @@ bass = 1.0
 dip = -5
 ee = "Sounar Room"
 
-[vocal]
-label = "Vocal Focus"
-tagline = "Singers, acoustic, podcasts: the voice right in front of you"
-icon = "󰍬"
-layout = "room"
-centre = 9
-fill = -13
-haas = 10
-vocal = 2.0
-bass = 0
-dip = -7
-ee = "Sounar Room"
-
+# Against Music: the ambience 5.5 dB louder, 6 ms later and wider (more air, less cut), the front
+# stage a little wider, and the open, less compressed effects. The voice stays in front.
 [immersive]
 label = "Immersive"
-tagline = "Ambient, live sets, film scores: a bigger room"
+tagline = "The room opened up: the music around you, not in front of you"
 icon = "󰗅"
 layout = "room"
 centre = 5
-fill = -6
-haas = 16
-vocal = 1.0
-bass = 1.0
-amb_lo = 200
-dip = -4
-ee = "Sounar Room"
-
-[club]
-label = "Club"
-tagline = "Afrobeats, amapiano, hip-hop, EDM: deep, punchy bass"
-icon = "󰓃"
-layout = "room"
-centre = 6
-fill = -10
-haas = 12
-vocal = 1.0
-bass = 3.0
-xover = 160
-dip = -5
-ee = "Sounar Room"
-
-[concert]
-label = "Concert Hall"
-tagline = "Classical and jazz: a wide stage and hall air"
-icon = "󰙽"
-layout = "room"
-centre = 3
-fill = -6
-haas = 20
+fill = -3.5
+haas = 18
 vocal = 0.5
-bass = 0
+bass = 1.0
 amb_lo = 200
 amb_hi = 12000
 dip = -3
 ee = "Sounar Classical Room"
 
-[late-night]
-label = "Late Night"
-tagline = "Low volume: clear vocals, even loudness, no boom"
-icon = "󰖔"
-layout = "room"
-centre = 6
-fill = -12
-haas = 12
-vocal = 1.5
-bass = 0
-dip = -5
-ee = "Sounar Late Night"
-
-[tv]
-label = "TV"
-tagline = "Facing the TV: every speaker plays full stereo, as wired"
-icon = "󰔂"
-layout = "stereo"
-ee = "Sounar Default"
-
+# Facing the TV: every speaker plays as wired so the sound stays on the screen, dialogue lifted,
+# loud scenes held back.
 [movie]
-label = "Movie Night"
-tagline = "Facing the TV: dialogue up front, loud scenes tamed"
+label = "Movie"
+tagline = "Facing the TV: speech first, loud scenes held back"
 icon = "󰿎"
 layout = "stereo"
 ee = "Sounar Movie Night"
-
-[party]
-label = "Party"
-tagline = "Anywhere in the room: every speaker plays the whole song"
-icon = "󰍖"
-layout = "spread"
-width = 0.5
-ee = "Sounar Default"

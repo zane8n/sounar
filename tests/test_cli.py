@@ -20,16 +20,16 @@ def ctx(tmp_home, monkeypatch):
 
 
 def test_cli_set_and_status_json(ctx, capsys):
-    assert cli.main(["-q", "set", "club"]) == 0
+    assert cli.main(["-q", "set", "immersive"]) == 0
     capsys.readouterr()
     assert cli.main(["status", "--json"]) == 0
     j = json.loads(capsys.readouterr().out)
-    assert j["preset"] == "club" and j["version"] == 1
+    assert j["preset"] == "immersive" and j["version"] == 1
 
 
 def test_preset_id_as_command(ctx):
-    assert cli.main(["party"]) == 0
-    assert load_state(ctx.presets)["preset"] == "party"
+    assert cli.main(["movie"]) == 0
+    assert load_state(ctx.presets)["preset"] == "movie"
 
 
 def test_cli_error_exit_code(ctx, capsys):

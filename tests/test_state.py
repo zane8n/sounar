@@ -1,3 +1,4 @@
+from fakes import legacy_presets
 import os
 import threading
 import time
@@ -5,14 +6,13 @@ import time
 import pytest
 
 from sounar import SounarError, paths
-from sounar.presets import load_presets
 from sounar.state import (Lock, Measuring, effective, history, history_append, load_state, log, measuring,
                           save_state, set_tweak)
 
 
 @pytest.fixture
 def ps():
-    return load_presets(None)
+    return legacy_presets()
 
 
 def test_defaults(tmp_home, ps):

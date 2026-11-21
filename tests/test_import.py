@@ -44,9 +44,11 @@ def test_import_maps_everything(home):
     assert st["calibration"]["offsets_ms"] == {"front-left": 0.0, "front-right": 0.0, "rear-right": 3.0}
     assert st["calibration"]["ts"] == "2026-10-24T13:43:55"
     assert st["sync_ms"] == {"front-left": 0.0, "front-right": 17.9}
-    # only what differs from the built-in presets stays in the user's presets file
+    # the user's presets file keeps what differs from the built-ins; prototype presets that are
+    # no longer built in (0.2 ships three) come across whole, so none is lost
     user = tomllib.loads((home / ".config/sounar/presets.toml").read_text())
-    assert user == {"club": {"bass": 3.5}}
+    assert {"vocal", "club", "concert", "late-night", "tv", "party"} <= set(user)
+    assert user["club"]["bass"] == 3.5 and user["club"]["layout"] == "room" and user["party"]["layout"] == "spread"
     assert load_presets(home / ".config/sounar/presets.toml")["club"].params["bass"] == 3.5
     h = [json.loads(line) for line in (home / ".local/state/sounar/history.jsonl").read_text().splitlines()]
     assert h[-1]["action"] == "import" and h[-1]["after"]["volumes"]["bluez_output.00_00_00_00_00_02.1"] == 54000

@@ -6,41 +6,48 @@ from sounar.speakers import Output, Setup, Speaker, examples, load_setup
 
 
 def test_builtin_order():
-    assert list(load_presets(None)) == ["music-room", "vocal", "immersive", "club", "concert", "late-night",
-                                        "tv", "movie", "party"]
+    assert list(load_presets(None)) == ["music-room", "immersive", "movie"]
 
 
 def test_builtin_values():
     ps = load_presets(None)
-    club = ps["club"]
-    assert club.layout == "room" and club.ee == "Sounar Room"
-    assert club.params["bass"] == 3.0 and club.params["xover"] == 160.0
-    assert club.params["amb_hi"] == DEFAULTS["room"]["amb_hi"]
-    assert ps["tv"].params == {} and ps["tv"].ee == "Sounar Default"
-    assert ps["party"].params == {"width": 0.5}
-    assert ps["concert"].ee == "Sounar Classical Room"
+    music, imm = ps["music-room"], ps["immersive"]
+    assert music.layout == imm.layout == "room" and music.ee == "Sounar Room"
+    assert music.params["amb_hi"] == DEFAULTS["room"]["amb_hi"]
+    # Immersive is clearly different, not a variant: the ambience louder, later, wider
+    assert imm.params["fill"] - music.params["fill"] >= 5 and imm.params["haas"] > music.params["haas"]
+    assert imm.params["amb_hi"] > music.params["amb_hi"] and imm.ee == "Sounar Classical Room"
+    assert ps["movie"].layout == "stereo" and ps["movie"].params == {} and ps["movie"].ee == "Sounar Movie Night"
+
+
+def test_old_presets_come_back_as_a_user_file():
+    from fakes import legacy_presets
+    ps = legacy_presets()
+    assert {"club", "party", "tv", "concert", "late-night", "vocal"} <= set(ps)
+    assert ps["party"].layout == "spread" and ps["party"].params == {"width": 0.5}
 
 
 def test_user_override_and_hidden(tmp_path):
     f = tmp_path / "presets.toml"
-    f.write_text('[club]\nee = "My EQ"\nbass = 4\n[movie]\nhidden = true\n'
+    f.write_text('[music-room]\nee = "My EQ"\nbass = 4\n[movie]\nhidden = true\n'
                  '[kitchen]\nlabel = "Kitchen"\nlayout = "spread"\nwidth = 0.2\n')
     ps = load_presets(f)
-    assert ps["club"].ee == "My EQ" and ps["club"].params["bass"] == 4.0 and ps["club"].params["xover"] == 160.0
+    assert ps["music-room"].ee == "My EQ" and ps["music-room"].params["bass"] == 4.0
+    assert ps["music-room"].params["xover"] == 150.0
     assert "movie" not in ps
     assert list(ps)[-1] == "kitchen" and ps["kitchen"].params == {"width": 0.2}
 
 
 def test_unknown_key_error(tmp_path):
     f = tmp_path / "presets.toml"
-    f.write_text('[club]\nbas = 4\n')
-    with pytest.raises(SounarError, match=r"presets\.toml.*club.*bas"):
+    f.write_text('[music-room]\nbas = 4\n')
+    with pytest.raises(SounarError, match=r"presets\.toml.*music-room.*bas"):
         load_presets(f)
 
 
 def test_value_out_of_range(tmp_path):
     f = tmp_path / "presets.toml"
-    f.write_text('[club]\nbass = 40\n')
+    f.write_text('[music-room]\nbass = 40\n')
     with pytest.raises(SounarError, match="-6"):
         load_presets(f)
 
